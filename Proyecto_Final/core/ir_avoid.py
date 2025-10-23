@@ -87,6 +87,7 @@ class IRAvoidNavigator:
         self._s_hit: Optional[float] = None
         self._last_leave_t: float = -1e9
         self._leave_refract_s: float = 0.50
+        self._corner_turn_count: int = 0  # Contador de giros consecutivos en esquina
 
         # Filtro IR e histéresis frontal
         self._ir_lp: Optional[List[float]] = None
@@ -369,35 +370,49 @@ class IRAvoidNavigator:
                 print(f"  🧱 WALL: d={dist:.1f}, s={s_now:.1f}, dLine={d_to_line:.1f}, err={heading_err:.1f}°, F={front_val:.0f} L={left_val:.0f} R={right_val:.0f}")
 
                 if front_blocked:
-                    # Esquina: girar hacia lado libre Y AVANZAR
+                    # Esquina: estrategia de escape progresiva
                     await self._apply(0, 0)
                     await self.robot.wait(0.12)
                     
+                    self._corner_turn_count += 1
+                    
+                    # Umbral dinámico: más permisivo después de múltiples intentos
+                    escape_threshold = self._front_off_th * (1.0 + 0.5 * min(self._corner_turn_count, 3))
+                    
                     turn_deg = 45.0
                     if self._wall_side == "left":
-                        print(f"  ↪️  Esquina: girando DERECHA {turn_deg}°")
+                        print(f"  ↪️  Esquina #{self._corner_turn_count}: girando DERECHA {turn_deg}°")
                         await self.robot.turn_right(turn_deg)
                     else:
-                        print(f"  ↩️  Esquina: girando IZQUIERDA {turn_deg}°")
+                        print(f"  ↩️  Esquina #{self._corner_turn_count}: girando IZQUIERDA {turn_deg}°")
                         await self.robot.turn_left(turn_deg)
                     
-                    # CRÍTICO: Avanzar tras girar para salir de la esquina
                     await self.robot.wait(0.10)
                     
-                    # Comprobar si frontal está libre tras giro
+                    # Comprobar frontal post-giro
                     ir_post = await self._ir_filtered()
                     front_post = self._imax(ir_post, self.front_idx)
                     
-                    if front_post < self._front_off_th:
-                        # Frontal despejado: avanzar 20cm para salir de esquina
-                        print(f"  ➡️  Frontal despejado ({front_post:.0f}), avanzando 20cm")
-                        advance_base = max(self.V_MIN, base_wf)
+                    # ESTRATEGIA DE ESCAPE:
+                    # - Intento 1-2: buscar frontal < umbral
+                    # - Intento 3+: FORZAR avance (escape agresivo)
+                    if front_post < escape_threshold or self._corner_turn_count >= 3:
+                        if self._corner_turn_count >= 3:
+                            print(f"  ⚠️  ESCAPE FORZADO tras {self._corner_turn_count} giros (F={front_post:.0f})")
+                        else:
+                            print(f"  ➡️  Frontal aceptable ({front_post:.0f}<{escape_threshold:.0f}), avanzando 25cm")
+                        
+                        # Avanzar para salir de esquina
+                        advance_base = max(self.V_MIN, base_wf * 1.2)
                         await self._apply(advance_base, advance_base)
-                        await self.robot.wait(2.0)  # ~20cm a velocidad reducida
+                        await self.robot.wait(2.5)  # ~25cm
                         await self._apply(0, 0)
+                        
+                        # Reset contador
+                        self._corner_turn_count = 0
                     else:
-                        # Aún bloqueado: girar más (esquina en U)
-                        print(f"  🔄 Aún bloqueado ({front_post:.0f}), girando más")
+                        # Giro adicional (máximo 2 veces)
+                        print(f"  🔄 Aún bloqueado ({front_post:.0f}>={escape_threshold:.0f}), girando más")
                         if self._wall_side == "left":
                             await self.robot.turn_right(45.0)
                         else:
@@ -406,6 +421,8 @@ class IRAvoidNavigator:
                     await self.robot.wait(0.10)
                     continue
                 else:
+                    # Frontal libre: reset contador y avanzar normalmente
+                    self._corner_turn_count = 0
                     await self._apply(vl, vr)
 
                 # ===== CONDICIÓN LEAVE (BUG2) =====
