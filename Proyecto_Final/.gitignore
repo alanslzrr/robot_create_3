@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Datos del robot (comentar si quieres versionar el mapa)
+nodes/nodes.jsonl
+nodes/edges.jsonl
+nodes/logs/*.csv
+nodes/logs/*.txt
+
+# Configuración local (descomentar si quieres versionar config.yaml)
+# config.yaml
+
+# Imágenes generadas
+*.png
+*.jpg
+*.jpeg
+!docs/*.png  # Excepto imágenes de documentación
+
+# Temporal
+*.tmp
+*.bak
+*.log
+
+# Sistema operativo
+*.lnk
+
+# Jupyter (si se añade análisis de datos)
+.ipynb_checkpoints/
+*.ipynb
+
+# Pytest (si se añaden tests)
+.pytest_cache/
+htmlcov/
+.coverage

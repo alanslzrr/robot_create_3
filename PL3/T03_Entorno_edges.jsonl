@@ -1,0 +1,4 @@
+{"from_id": 0, "to_id": 1, "turn": "straight", "segment_cm": 84.50591695260161, "start_x": 0.0, "start_y": 0.0, "end_x": -1.0, "end_y": 84.5, "timestamp": "2025-10-21T11:20:25Z"}
+{"from_id": 1, "to_id": 2, "turn": "left", "segment_cm": 58.90543268663765, "start_x": -1.0, "start_y": 84.5, "end_x": -59.9, "end_y": 83.7, "timestamp": "2025-10-21T11:20:39Z"}
+{"from_id": 2, "to_id": 3, "turn": "left", "segment_cm": 53.909275639726424, "start_x": -59.9, "start_y": 83.7, "end_x": -58.9, "end_y": 29.8, "timestamp": "2025-10-21T11:20:53Z"}
+{"from_id": 3, "to_id": 4, "turn": "right", "segment_cm": 28.692333470807146, "start_x": -58.9, "start_y": 29.8, "end_x": -87.5, "end_y": 27.5, "timestamp": "2025-10-21T11:21:01Z"}

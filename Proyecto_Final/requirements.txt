@@ -1,0 +1,21 @@
+# requirements.txt
+# Dependencias del Sistema de Navegación Create3
+
+# iRobot SDK
+irobot-edu-sdk>=0.3.0
+
+# Visualización
+matplotlib>=3.5.0
+numpy>=1.21.0
+
+# Configuración
+pyyaml>=6.0
+
+# Control de teclado (teleop)
+pynput>=1.7.6
+
+# Opcional: análisis de datos
+pandas>=1.3.0
+
+# Opcional: interfaz gráfica
+# tkinter viene con Python en la mayoría de instalaciones

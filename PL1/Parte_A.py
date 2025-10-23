@@ -1,0 +1,47 @@
+# Paso 1
+from irobot_edu_sdk.backend.bluetooth import Bluetooth
+from irobot_edu_sdk.robots import event, Create3
+
+# Conexión al robot por Bluetooth (ajusta el nombre si es necesario)
+robot = Create3(Bluetooth("C3_UIEC_Grupo1"))
+
+# Umbral para detectar obstáculo
+IR_THRESHOLD = 150
+VELOCIDAD_SUAVE = 15  # cm/s
+
+
+async def has_obstacle(robot):
+    """Detecta si hay obstáculo frontal"""
+    sensors = (await robot.get_ir_proximity()).sensors
+    # Sensor frontal central es sensors[3]
+    return sensors[3] > IR_THRESHOLD if len(sensors) > 3 else False
+
+
+@event(robot.when_play)
+async def play(robot):
+    # 0) Aviso previo: luz roja y pitido
+    print("Aviso: luz roja y pitido antes de salir del dock...")
+    await robot.set_lights_on_rgb(255, 0, 0)
+    await robot.play_note(440, 0.4)
+    # Posición tras salir del dock
+    print("Posición actual (x, y, heading):", robot.pose)
+
+    # 1.5) Arranque suave justo tras undock (30 cm)
+    print("Arranque suave: avanzando 20 cm a velocidad suave...")
+  
+    await robot.move(-20)
+
+    # Apagar luz roja tras salir del dock
+    await robot.set_lights_on_rgb(0, 0, 0)
+
+    # Fijar este punto como origen de navegación (0,0)
+  
+    await robot.reset_navigation()
+    await robot.set_lights_on_rgb(0, 255, 0)
+    await robot.play_note(440, 0.4)
+    
+
+
+if __name__ == "__main__":
+    print("Iniciando secuencia desde la base...")
+    robot.play()

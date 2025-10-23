@@ -1,0 +1,2 @@
+{"id": 1, "name": "Dock", "x": 0.0, "y": 0.0, "theta": 89.9, "ts": "2025-10-07T16:18:43"}
+{"id": 2, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-21T18:03:09", "source": "undock"}

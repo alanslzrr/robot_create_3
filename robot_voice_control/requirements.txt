@@ -1,0 +1,5 @@
+openai-agents[voice]
+numpy
+sounddevice
+websocket-client
+pyaudio

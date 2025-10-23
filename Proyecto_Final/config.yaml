@@ -1,0 +1,73 @@
+# config.yaml
+# Configuración del sistema de navegación Create3
+# Valores basados en PL2/examples probados en laboratorio
+
+# Robot
+robot:
+  name: "C3_UIEC_Grupo1"   # Nombre del robot Bluetooth
+
+# Motion (valores de examples/manual_move.py)
+motion:
+  vel_default_cm_s: 15.0    # Velocidad lineal (cm/s) - examples/manual_move.py
+  giro_default_cm_s: 10.0   # Velocidad de giro (cm/s) - examples/manual_move.py  
+  track_width_cm: 23.5     # Ancho entre ruedas (cm) - examples/manual_move.py
+  linear_scale: 1.0        # Factor de corrección lineal (calibración)
+  angular_scale: 1.0       # Factor de corrección angular (calibración)
+
+# Safety (valores de PL2/T02_Etapa01.py, T02_Etapa02.py)
+safety:
+  ir_threshold: 160               # Safety actúa solo si la evasión falla
+  safety_period_s: 0.1     # Período de muestreo de seguridad (s)
+  enable_auto_brake: false # Frenado automático DESACTIVADO por defecto
+
+# Telemetría
+telemetry:
+  period_s: 0.1            # Período de muestreo (s = 10 Hz)
+  log_dir: "nodes/logs"    # Directorio de logs
+
+# Navegación
+navigation:
+  default_mode: "direct"   # "direct" o "replay"
+  timeout_s: 30.0          # Timeout para navigate_to (s)
+  waypoint_tolerance_cm: 5.0  # Tolerancia de llegada (cm)
+  
+# Undock (parámetros explícitos)
+undock:
+  back_cm: 30.0            # Retroceso desde dock (cm)
+  back_speed: 5.0          # Velocidad de retroceso (cm/s) - PL2
+  turn_deg: 180.0          # Giro tras retroceso (grados)
+  turn_dir: "right"        # Dirección de giro: "right" o "left"
+
+# Visualización
+visualization:
+  figsize_width: 12        # Ancho de figura (pulgadas)
+  figsize_height: 10       # Alto de figura (pulgadas)
+  show_grid: true          # Mostrar cuadrícula
+  show_labels: true        # Mostrar etiquetas de nodos
+  show_quality: true       # Colorear por calidad
+
+# Evitación/reactivo por IR (Bug2 simplificado)
+avoidance:
+  enable: true
+  mode: bug2
+  # Umbrales (alineados con práctica)
+  ir_obs_threshold: 120           # frontal (~15 cm)
+  ir_dir_threshold: 650           # lateral (~5 cm)
+  # Índices IR
+  front_idx: [2, 3, 4]            # incluir 2 y 4 para frontales oblicuos
+  left_idx: [0, 1, 2]             # incluye 2 (frontal-izq)
+  right_idx: [4, 5, 6]            # incluye 4 (frontal-der)
+  # Filtro IIR
+  iir_alpha: 0.20                 # salida más rápida del bloqueo
+  # Velocidades y control
+  cruise_cm_s: 8
+  turn_cm_s: 10
+  goal_kp: 0.03
+  wall_kp: 0.007                  # reacción lateral más firme
+  # Criterios de reenganche y finalización
+  goal_tolerance_cm: 5
+  reacquire_deg: 12
+  timeout_s: 180
+  # Detección de atasco
+  progress_eps_cm: 2
+  progress_dt_s: 5
