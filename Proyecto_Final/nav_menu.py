@@ -121,7 +121,8 @@ class NavigationGUI:
         ttk.Button(nav_frame, text="Ir a Nodo", command=self.cmd_go_to_node).grid(row=0, column=0, padx=2)
         ttk.Button(nav_frame, text="Ir a Nombre", command=self.cmd_go_to_name).grid(row=0, column=1, padx=2)
         ttk.Button(nav_frame, text="Ir a Origen", command=self.cmd_go_home).grid(row=0, column=2, padx=2)
-        ttk.Button(nav_frame, text="Parar", command=self.cmd_stop).grid(row=0, column=3, padx=2)
+        ttk.Button(nav_frame, text="Cruise", command=self.cmd_cruise).grid(row=0, column=3, padx=2)
+        ttk.Button(nav_frame, text="Parar", command=self.cmd_stop).grid(row=0, column=4, padx=2)
 
         mode_frame = ttk.Frame(nav_frame)
         mode_frame.grid(row=1, column=0, columnspan=3, pady=5)
@@ -308,6 +309,10 @@ class NavigationGUI:
     def cmd_go_home(self):
         self.log_message("Volviendo a origen (IR Avoid)...")
         cmdq.put({"cmd": "h"})
+
+    def cmd_cruise(self):
+        self.log_message("Crucero reactivo IR...")
+        cmdq.put({"cmd": "cruise"})
 
     def cmd_stop(self):
         self.log_message("Parando navegación...")
@@ -547,6 +552,32 @@ async def main_loop(robot):
                     print("✔ En origen (0,0).")
                 else:
                     print("⚠ No fue posible alcanzar origen dentro del tiempo.")
+
+            elif cmd == "cruise":
+                print("Crucero reactivo con IR Avoid...")
+                if current_nav_task and not current_nav_task.done():
+                    current_nav_task.cancel()
+                    try:
+                        await current_nav_task
+                    except Exception:
+                        pass
+                try:
+                    if _safety and config['safety'].get('enable_auto_brake', False):
+                        _safety.enable(True)
+                        await _safety.start()
+                except Exception:
+                    pass
+                nav = IRAvoidNavigator(robot, config, safety=_safety, telemetry=_telemetry)
+                try:
+                    ok, _ = await nav.cruise()
+                except asyncio.CancelledError:
+                    await robot.set_wheel_speeds(0, 0)
+                    print("⏹ Crucero cancelado.")
+                else:
+                    if ok:
+                        print("✔ Crucero completado (timeout o parada).")
+                    else:
+                        print("⚠ Crucero terminó por timeout.")
 
             elif cmd == "stop":
                 if current_nav_task and not current_nav_task.done():
