@@ -264,6 +264,8 @@ class CombinedPotentialNavigator:
         self.logger = SensorLogger(robot)
         self.vel_logger = VelocityLogger(f"{potential_type}_combined")
         self.running = False
+        self.current_led_color = None  # Para rastrear el color actual del LED
+        self.obstacle_detected = False  # Para rastrear si ya se detectó obstáculo (para sonido)
         
     async def navigate(self):
         """
@@ -299,6 +301,11 @@ class CombinedPotentialNavigator:
         
         # Resetear la rampa de aceleración para empezar desde velocidad cero
         reset_velocity_ramp()
+        
+        # LED VERDE: Listo para iniciar (estado inicial)
+        await self.robot.set_lights_rgb(0, 255, 0)
+        self.current_led_color = 'green'
+        await self.robot.wait(1.0)  # Mantener verde 1 segundo antes de empezar
         
         # Iniciar los sistemas de logging en segundo plano
         self.logger.start()
@@ -349,6 +356,10 @@ class CombinedPotentialNavigator:
                 # Verificar si hemos alcanzado la meta
                 if distance < config.TOL_DIST_CM:
                     await self.robot.set_wheel_speeds(0, 0)
+                    
+                    # LED VERDE: Meta alcanzada
+                    await self.robot.set_lights_rgb(0, 255, 0)
+                    
                     self.logger.stop()
                     self.vel_logger.stop()
                     
@@ -392,6 +403,44 @@ class CombinedPotentialNavigator:
                 # Las velocidades ya vienen combinadas del potencial, así que solo
                 # necesitamos asegurar que no excedan los límites físicos
                 v_left, v_right = saturate_wheel_speeds(v_left, v_right)
+                
+                # ========== CONTROL DE LEDs Y SONIDO SEGÚN ESTADO ==========
+                # Sistema de LEDs:
+                # - VERDE: Inicio (ya establecido al principio)
+                # - AZUL: Navegando sin obstáculos
+                # - NARANJA: Obstáculo detectado (con pitido)
+                # - CYAN: Esquivando obstáculo activamente
+                # - VERDE: Meta alcanzada
+                
+                # Obtener información de obstáculos y nivel de seguridad
+                num_obstacles = info.get('num_obstacles', 0)
+                safety_level = info.get('safety_level', 'CLEAR')
+                max_ir_front = info.get('max_ir_front', 0)
+                
+                # Determinar el estado actual del robot
+                if num_obstacles > 0 and max_ir_front >= config.IR_THRESHOLD_CAUTION:
+                    # Hay obstáculos detectados dentro del rango de influencia
+                    if max_ir_front >= config.IR_THRESHOLD_WARNING:
+                        # ESQUIVANDO: Obstáculo cerca, maniobra activa
+                        if self.current_led_color != 'cyan':
+                            await self.robot.set_lights_rgb(0, 255, 255)  # CYAN
+                            self.current_led_color = 'cyan'
+                    else:
+                        # OBSTÁCULO DETECTADO: Primera detección
+                        if self.current_led_color != 'orange':
+                            await self.robot.set_lights_rgb(255, 165, 0)  # NARANJA
+                            self.current_led_color = 'orange'
+                            # Emitir pitido solo cuando cambia a naranja (primera detección)
+                            if not self.obstacle_detected:
+                                await self.robot.play_note(440, 0.2)  # La (440Hz) por 0.2 segundos
+                                self.obstacle_detected = True
+                else:
+                    # Sin obstáculos cercanos: navegación normal
+                    if self.current_led_color != 'blue':
+                        await self.robot.set_lights_rgb(0, 0, 255)  # AZUL
+                        self.current_led_color = 'blue'
+                        # Resetear flag de obstáculo cuando vuelve a navegación normal
+                        self.obstacle_detected = False
                 
                 # Mostrar información de debug si está habilitado
                 # Incluimos información sobre obstáculos detectados y fuerzas repulsivas

@@ -68,7 +68,7 @@ CONTROL_DT = 0.05
 
 # Tolerancia de distancia para considerar que se alcanzó la meta
 # Si la distancia al objetivo es menor que este valor, la navegación termina
-TOL_DIST_CM = 3.0
+TOL_DIST_CM = 5.0
 
 # Tolerancia angular en grados
 # Utilizada para validaciones adicionales de orientación si es necesario
@@ -83,7 +83,7 @@ ACCEL_RAMP_CM_S2 = 5.0
 # Ganancia angular para corrección de orientación
 # Controla qué tan agresivamente el robot corrige su dirección hacia el objetivo
 # Valor aumentado para permitir giros más rápidos durante evasión de obstáculos
-K_ANGULAR = 1.2
+K_ANGULAR = 2.0
 
 # Ganancias lineales específicas para cada tipo de función de potencial
 # Cada función tiene características diferentes de escala, por lo que requiere
@@ -95,7 +95,7 @@ K_LINEAR = 0.25
 
 # Función cuadrática: F = k * d²
 # Requiere ganancia menor porque la distancia está al cuadrado
-K_QUADRATIC = 0.01
+K_QUADRATIC = 0.05
 
 # Función cónica: F = k * min(d, d_sat)
 # Saturación a 100 cm, velocidad constante en distancias largas
@@ -112,11 +112,13 @@ K_EXPONENTIAL = 2.5
 
 # Ganancia repulsiva que controla la intensidad de las fuerzas de evasión
 # Valores altos generan evasión más agresiva, valores bajos permiten acercarse más
-K_REPULSIVE = 500.0
+# AUMENTADO: de 500 → 2500 para esquive más rápido y decidido
+K_REPULSIVE = 2500.0
 
 # Distancia de influencia del campo repulsivo en centímetros
 # Los obstáculos más lejos que esta distancia no generan fuerzas repulsivas
-D_INFLUENCE = 30.0
+# AUMENTADO: de 30cm → 50cm para reaccionar antes y con más espacio
+D_INFLUENCE = 50.0
 
 # Distancia de seguridad mínima absoluta
 # Referencia para validaciones adicionales si es necesario

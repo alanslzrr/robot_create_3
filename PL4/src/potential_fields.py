@@ -495,9 +495,9 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None):
             # Normalizar la fuerza por la intensidad del sensor
             # Valores más altos de intensidad indican obstáculos más cercanos o
             # con mejor reflectividad, por lo que deben generar fuerzas mayores
-            # Limitamos la amplificación a un máximo de 2.0 para evitar fuerzas
-            # excesivas que detengan completamente el robot
-            strength_factor = min(strength / 1000.0, 2.0)
+            # AJUSTADO: Límite aumentado de 2.0 → 3.5 para respuesta más enérgica
+            # Con calibración real: valores de 1000+ a 5cm requieren amplificación mayor
+            strength_factor = min(strength / 800.0, 3.5)
             
             # Calcular la magnitud de la fuerza repulsiva
             # Fórmula: F = k_rep * strength_factor * (1/d - 1/d_influence)
@@ -720,8 +720,9 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         
         # Calcular pesos para combinar las direcciones
         # El peso repulsivo aumenta cuando el robot está más cerca de obstáculos
-        # Limitamos a máximo 90% para asegurar que siempre haya componente atractiva
-        weight_rep = min(f_rep_mag / 5.0, 0.9)
+        # AJUSTADO: Límite aumentado de 0.9 → 0.95 y divisor reducido de 5.0 → 3.0
+        # Esto permite que la fuerza repulsiva domine más cuando hay obstáculos cercanos
+        weight_rep = min(f_rep_mag / 3.0, 0.95)
         weight_att = 1.0 - weight_rep
         
         # Combinar ángulos mediante promedio ponderado de vectores unitarios
@@ -733,8 +734,9 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         
         # Aplicar reducción adicional de velocidad cuando hay fuerza repulsiva significativa
         # Esto proporciona una capa extra de seguridad además del límite dinámico v_max_allowed
-        # El factor puede reducir la velocidad hasta 80% adicional cuando hay obstáculos muy cerca
-        extra_slowdown = max(0.2, 1.0 - weight_rep * 0.6)
+        # AJUSTADO: Reducción menos agresiva (0.5 → 0.4) para mantener más velocidad durante evasión
+        # Factor mínimo aumentado de 0.2 → 0.4 para evitar que se detenga durante la maniobra
+        extra_slowdown = max(0.4, 1.0 - weight_rep * 0.4)
         v_linear = v_base * extra_slowdown
     else:
         # Sin obstáculos detectados, usar directamente el ángulo hacia la meta
@@ -748,11 +750,23 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     
     # Reducir velocidad cuando el error angular es grande
     # Usamos el coseno del error como factor: valor alto cuando estamos bien orientados,
-    # valor bajo cuando necesitamos girar. Mantenemos un límite inferior de 0.1 para
-    # permitir maniobras de evasión incluso cuando el error angular es grande
+    # valor bajo cuando necesitamos girar. Mantenemos un límite inferior para permitir
+    # maniobras de evasión incluso cuando el error angular es grande
+    # AJUSTADO: Límite aumentado de 0.1 → 0.2 para mantener más velocidad durante giros de evasión
+    # MEJORA: Cerca del objetivo (< 10cm), ser más tolerante con el ángulo para evitar oscilación
     angle_factor = math.cos(angle_error)
-    if angle_factor < 0.1:  # Límite inferior para permitir evasión
-        angle_factor = 0.1
+    
+    # Ajustar límite inferior según distancia al objetivo
+    if distance < 10.0:
+        # Cerca del objetivo: límite más alto (0.5) para permitir avance aunque no esté perfectamente orientado
+        min_angle_factor = 0.5
+    else:
+        # Lejos del objetivo: límite normal (0.2) para giros de evasión
+        min_angle_factor = 0.2
+    
+    if angle_factor < min_angle_factor:
+        angle_factor = min_angle_factor
+    
     v_linear *= angle_factor
     
     # Asegurar velocidad mínima para evasión efectiva cuando hay obstáculos
@@ -766,7 +780,18 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # La velocidad angular es proporcional al error angular, permitiendo corrección
     # de orientación más rápida cuando el error es mayor. Esto es especialmente
     # importante durante evasión de obstáculos cuando necesitamos cambiar dirección rápidamente
-    omega = k_ang * angle_error
+    
+    # MEJORA: Reducir ganancia angular cerca del objetivo para evitar oscilación
+    # Cuando estamos muy cerca (< 15cm), reducimos k_ang progresivamente para
+    # permitir convergencia suave sin oscilaciones
+    k_ang_adjusted = k_ang
+    if distance < 15.0:
+        # Reducir k_ang linealmente de 100% a 30% cuando dist va de 15cm a 5cm
+        reduction_factor = 0.3 + 0.7 * ((distance - 5.0) / 10.0)
+        reduction_factor = max(0.3, min(1.0, reduction_factor))
+        k_ang_adjusted = k_ang * reduction_factor
+    
+    omega = k_ang_adjusted * angle_error
     
     # Convertir el límite de velocidad angular y saturar
     omega_max_rad_s = config.W_MAX_CM_S / (config.WHEEL_BASE_CM / 2.0)

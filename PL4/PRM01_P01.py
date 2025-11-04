@@ -234,6 +234,7 @@ class AttractiveFieldNavigator:
         self.logger = SensorLogger(robot)
         self.vel_logger = VelocityLogger(potential_type)
         self.running = False
+        self.current_led_color = None  # Para rastrear el color actual del LED
         
     async def navigate(self):
         """
@@ -267,6 +268,10 @@ class AttractiveFieldNavigator:
         
         # Resetear la rampa de aceleración para empezar desde velocidad cero
         reset_velocity_ramp()
+        
+        # LED AZUL: Navegando hacia el objetivo
+        await self.robot.set_lights_rgb(0, 0, 255)
+        self.current_led_color = 'blue'
         
         # Iniciar los sistemas de logging en segundo plano
         self.logger.start()
@@ -307,6 +312,10 @@ class AttractiveFieldNavigator:
                 # Verificar si hemos alcanzado la meta
                 if distance < config.TOL_DIST_CM:
                     await self.robot.set_wheel_speeds(0, 0)
+                    
+                    # LED VERDE: Meta alcanzada
+                    await self.robot.set_lights_rgb(0, 255, 0)
+                    
                     self.logger.stop()
                     self.vel_logger.stop()
                     
@@ -348,6 +357,24 @@ class AttractiveFieldNavigator:
                 
                 # Saturar las velocidades dentro de los límites seguros del robot
                 v_left, v_right = saturate_wheel_speeds(v_left, v_right)
+                
+                # ========== CONTROL DE LEDs SEGÚN VELOCIDAD ==========
+                # Calcular la velocidad lineal promedio para determinar el estado
+                v_avg = (abs(v_left) + abs(v_right)) / 2.0
+                
+                # Cambiar color del LED según la velocidad:
+                # - AZUL: Velocidad alta (navegando normalmente) > 20 cm/s
+                # - NARANJA: Velocidad reducida (acercándose o precaución) <= 20 cm/s
+                if v_avg > 20.0:
+                    # LED AZUL: Navegando a velocidad normal
+                    if self.current_led_color != 'blue':
+                        await self.robot.set_lights_rgb(0, 0, 255)
+                        self.current_led_color = 'blue'
+                else:
+                    # LED NARANJA: Velocidad reducida (acercándose al objetivo)
+                    if self.current_led_color != 'orange':
+                        await self.robot.set_lights_rgb(255, 165, 0)
+                        self.current_led_color = 'orange'
                 
                 # Mostrar información de debug si está habilitado
                 if self.debug and iteration % 10 == 0:
