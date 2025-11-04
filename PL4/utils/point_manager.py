@@ -1,15 +1,34 @@
 """
 Herramienta de teleoperación para definir puntos de navegación
 
-Autores: Yago Ramos - Salazar Alan
-Fecha de finalización: 28 de octubre de 2025
-Institución: UIE - Robots Autónomos
+Autores: Alan Salazar, Yago Ramos
+Fecha: 4 de noviembre de 2025
+Institución: UIE Universidad Intercontinental de la Empresa
+Asignatura: Robots Autónomos - Profesor Eladio Dapena
 Robot SDK: irobot-edu-sdk
 
-Objetivo:
-    Proporcionar una interfaz interactiva para que el operador mueva el robot
-    manualmente hasta las posiciones deseadas y las registre como punto inicial
-    (q_i) y punto final (q_f) mediante los botones físicos del Create 3.
+OBJETIVOS PRINCIPALES:
+
+En este módulo implementamos una herramienta de teleoperación que permite al
+operador mover el robot manualmente y marcar posiciones específicas que luego
+se utilizan como puntos de inicio y fin para la navegación autónoma. Nuestro
+objetivo principal era crear una interfaz intuitiva que facilitara la definición
+de trayectorias sin necesidad de conocer las coordenadas exactas del espacio.
+
+Los objetivos específicos que buscamos alcanzar incluyen:
+
+1. Proporcionar control manual del robot mediante teclado para moverse libremente
+   por el espacio de trabajo
+2. Permitir marcado de puntos mediante botones físicos del robot, proporcionando
+   una forma natural e intuitiva de definir posiciones
+3. Resetear la odometría al inicio para usar el origen (0,0) como referencia
+   absoluta, facilitando la reproducibilidad de experimentos
+4. Validar que los puntos marcados estén separados una distancia mínima para
+   asegurar que la navegación tenga sentido
+5. Generar archivos JSON con formato estandarizado que puedan ser leídos fácilmente
+   por los scripts principales de navegación
+6. Proporcionar realimentación visual en consola para que el operador sepa qué
+   puntos han sido marcados y su estado actual
 
 Comportamiento esperado:
     - Permitir control manual del robot con teclas WASD del teclado
@@ -52,7 +71,10 @@ import math
 from pathlib import Path
 from irobot_edu_sdk.backend.bluetooth import Bluetooth
 from irobot_edu_sdk.robots import Create3, event
-import config
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src import config
 
 # ---------- Conexión ----------
 robot = Create3(Bluetooth(config.BLUETOOTH_NAME))
@@ -152,7 +174,8 @@ async def play(robot):
                 points.clear()
             else:
                 # Guardar y salir
-                output_file = Path(config.POINTS_FILE)
+                output_file = Path("data") / config.POINTS_FILE
+                output_file.parent.mkdir(exist_ok=True)
                 output_file.write_text(json.dumps(points, indent=4))
                 print("\n" + "="*60)
                 print("✅ PUNTOS GUARDADOS EXITOSAMENTE")

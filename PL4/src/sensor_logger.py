@@ -1,17 +1,32 @@
 """
 Sistema de monitoreo en tiempo real de sensores del iRobot Create 3
 
-Autores: Yago Ramos - Salazar Alan
-Fecha de finalización: 28 de octubre de 2025
-Institución: UIE - Robots Autónomos
+Autores: Alan Salazar, Yago Ramos
+Fecha: 4 de noviembre de 2025
+Institución: UIE Universidad Intercontinental de la Empresa
+Asignatura: Robots Autónomos - Profesor Eladio Dapena
 Robot SDK: irobot-edu-sdk
 
-Objetivo:
-    Proporcionar visualización continua del estado de los sensores del robot
-    (proximidad infrarroja, bumpers, odometría y batería) durante la ejecución
-    de navegación, facilitando el monitoreo y depuración sin interrumpir el
-    control principal. Implementa un sistema asíncrono de logging que imprime
-    lecturas periódicamente.
+OBJETIVOS PRINCIPALES:
+
+En este módulo implementamos un sistema de monitoreo asíncrono que proporciona
+visualización continua del estado de todos los sensores del robot durante la
+navegación autónoma. Nuestro objetivo principal era crear una herramienta de
+depuración y monitoreo que permitiera observar el comportamiento del robot en
+tiempo real sin interferir con el bucle de control principal.
+
+Los objetivos específicos que buscamos alcanzar incluyen:
+
+1. Implementar un sistema de logging asíncrono que funcione en segundo plano
+   sin bloquear el bucle principal de navegación
+2. Proporcionar visualización periódica de todos los sensores críticos del robot
+   incluyendo sensores IR, bumpers, odometría y nivel de batería
+3. Integrar análisis de seguridad que muestre el nivel de peligro actual según
+   las lecturas de sensores IR frontales
+4. Proporcionar una función de instantánea de sensores para capturas puntuales
+   sin iniciar el logger completo
+5. Garantizar que el sistema pueda iniciarse y detenerse de forma limpia sin
+   dejar tareas pendientes
 
 Comportamiento esperado:
     - Iniciar tarea asíncrona en segundo plano al crear instancia
@@ -64,7 +79,7 @@ Uso típico:
 """
 
 import asyncio
-import config
+from . import config
 
 
 class SensorLogger:

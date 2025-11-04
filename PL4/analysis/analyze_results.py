@@ -3,17 +3,32 @@
 """
 Herramienta de análisis comparativo para funciones de potencial atractivo
 
-Autores: Yago Ramos - Salazar Alan
-Fecha de finalización: 28 de octubre de 2025
-Institución: UIE - Robots Autónomos
+Autores: Alan Salazar, Yago Ramos
+Fecha: 4 de noviembre de 2025
+Institución: UIE Universidad Intercontinental de la Empresa
+Asignatura: Robots Autónomos - Profesor Eladio Dapena
 Robot SDK: irobot-edu-sdk (análisis offline)
 
-Objetivo:
-    Procesar archivos CSV generados por velocity_logger.py y calcular métricas
-    cuantitativas que permitan comparar el desempeño de diferentes funciones de
-    potencial (lineal, cuadrática, cónica, exponencial). Genera tablas comparativas
-    con estadísticas de tiempo, precisión, eficiencia de trayectoria y
-    características de velocidad.
+OBJETIVOS PRINCIPALES:
+
+En este módulo implementamos una herramienta de análisis que procesa los archivos
+CSV generados durante las ejecuciones de navegación y calcula métricas cuantitativas
+que permiten comparar objetivamente el desempeño de diferentes funciones de potencial.
+Nuestro objetivo principal era crear una herramienta que facilitara la evaluación
+de qué función de potencial ofrece mejores resultados según diferentes criterios.
+
+Los objetivos específicos que buscamos alcanzar incluyen:
+
+1. Procesar automáticamente todos los archivos CSV generados por velocity_logger.py
+   sin necesidad de configuración manual
+2. Calcular métricas relevantes de desempeño como tiempo total, precisión final,
+   distancia recorrida y características de velocidad
+3. Generar tablas comparativas formateadas que faciliten la visualización de
+   diferencias entre funciones de potencial
+4. Identificar automáticamente la mejor función según diferentes criterios (más
+   rápido, más preciso, camino más corto)
+5. Proporcionar información detallada por función que permita análisis más profundo
+   del comportamiento de cada tipo de potencial
 
 Comportamiento esperado:
     - Buscar automáticamente archivos CSV en directorio logs/
@@ -149,7 +164,9 @@ def analyze_trajectory(data):
 def main():
     """Analiza todos los CSV en la carpeta logs"""
     
-    logs_dir = Path("logs")
+    # Obtener ruta relativa al directorio raíz del proyecto
+    project_root = Path(__file__).parent.parent
+    logs_dir = project_root / "logs"
     if not logs_dir.exists():
         print("❌ No existe la carpeta 'logs'")
         return

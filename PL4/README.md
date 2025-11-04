@@ -5,292 +5,137 @@
 **Institución:** UIE - Robots Autónomos  
 **Robot:** iRobot Create 3
 
-## 🆕 Actualización - Sistema de Seguridad Mejorado (v2.0)
+## Introducción
 
-### Cambios Importantes
+Para esta práctica evaluada número 4 teníamos como desafío implementar un sistema completo de navegación autónoma para el robot Create 3 utilizando campos de potencial. El objetivo principal era lograr que el robot navegara desde una posición inicial hasta una posición final, primero usando únicamente un campo de potencial atractivo, y posteriormente combinando este campo atractivo con un campo repulsivo para evitar obstáculos detectados por los sensores infrarrojos.
 
-Se ha implementado un **sistema de umbrales escalonados** para control robusto de velocidad ante obstáculos:
-
-- **4 niveles de seguridad** (vs 2 anteriores)
-- **Límites dinámicos de velocidad** según proximidad
-- **Reacción gradual** para evitar colisiones
-- **Basado en calibración real** del robot a 5cm
-
-Ver detalles completos en: [`SAFETY_THRESHOLDS.md`](SAFETY_THRESHOLDS.md)
-
-### Umbrales Actualizados
-
-| Nivel | IR Umbral | V_max | Distancia Est. |
-|-------|-----------|-------|----------------|
-| 🚨 EMERGENCIA | ≥800 | 0 cm/s | <5 cm |
-| 🔴 CRÍTICO | ≥400 | 10 cm/s | 5-10 cm |
-| ⚠️ ADVERTENCIA | ≥200 | 20 cm/s | 10-20 cm |
-| ⚡ PRECAUCIÓN | ≥100 | 30 cm/s | 20-40 cm |
-| ✅ LIBRE | <100 | 48 cm/s | >40 cm |
-
-## Descripción
-
-Implementación de navegación autónoma mediante campos de potencial combinados (atractivo + repulsivo) para el robot Create 3. El sistema permite al robot navegar desde un punto inicial hasta un objetivo mientras evita obstáculos detectados por sensores IR, con **control inteligente de velocidad** que garantiza tiempo suficiente de reacción.
+El proyecto se desarrolló en dos partes principales, cada una implementada en un script separado que permite probar diferentes funciones de potencial y analizar su comportamiento comparativo. La estructura del código está organizada en módulos reutilizables que facilitan el mantenimiento y la extensión del sistema.
 
 ## Estructura del Proyecto
 
+El proyecto está organizado en varias carpetas y archivos principales que cumplen funciones específicas:
+
 ```
 PL4/
-├── config.py              # Parámetros de configuración
-├── potential_fields.py    # Funciones de campos de potencial
-├── safety.py             # Sistema de seguridad
-├── point_manager.py      # Gestión de puntos de navegación
-├── sensor_logger.py      # Registro de sensores
-├── velocity_logger.py    # Registro de velocidades
-├── PRM01_P01.py          # Script Parte 01 (solo atractivo)
-├── PRM01_P02.py          # Script Parte 02 (combinado)
-├── analyze_results.py    # Análisis de resultados
-├── points.json           # Puntos de navegación
-└── logs/                 # Archivos CSV de telemetría
+├── PRM01_P01.py          # Script principal Parte 01 (potencial atractivo)
+├── PRM01_P02.py          # Script principal Parte 02 (potencial combinado)
+├── src/                  # Módulos principales del sistema
+│   ├── config.py         # Configuración centralizada de parámetros
+│   ├── potential_fields.py  # Implementación de funciones de potencial
+│   ├── safety.py         # Sistema de seguridad y detección de obstáculos
+│   ├── sensor_logger.py  # Monitoreo de sensores en tiempo real
+│   └── velocity_logger.py # Registro de datos en CSV
+├── utils/                # Herramientas auxiliares
+│   └── point_manager.py  # Configuración de puntos de navegación
+├── analysis/             # Scripts de análisis y visualización
+│   ├── analyze_results.py    # Análisis comparativo de resultados CSV
+│   └── visualize_safety.py  # Generación de gráficos del sistema de seguridad
+├── data/                 # Archivos de datos
+│   └── points.json       # Puntos inicial y final de navegación
+├── images/               # Imágenes generadas por scripts de visualización
+│   ├── safety_ir_vs_vmax.png
+│   ├── safety_ir_vs_distance.png
+│   └── safety_table.png
+└── logs/                 # Archivos CSV con datos de telemetría
 ```
 
 ## Parte 01 - Campo de Potencial Atractivo
 
-### Objetivo
-Implementar navegación usando únicamente el campo de potencial atractivo que lleva al robot hacia la meta.
+En el primer código PRM01_P01.py buscamos implementar la navegación básica utilizando únicamente un campo de potencial atractivo. Este campo genera una fuerza que atrae al robot hacia la posición objetivo, calculando en cada iteración las velocidades de las ruedas necesarias para avanzar en esa dirección.
 
-### Funciones de Potencial Implementadas
+Este script funciona con los archivos del módulo src, específicamente con potential_fields.py que contiene las cuatro funciones de potencial que implementamos: lineal, cuadrática, cónica y exponencial. Cada una de estas funciones tiene características diferentes en cuanto a cómo la fuerza varía con la distancia al objetivo.
 
-1. **Lineal:** F = k * d
-   - Proporcional a la distancia
-   - Velocidad constante independiente de la distancia
+El script también integra el módulo safety.py para aplicar límites de seguridad a las velocidades calculadas, sensor_logger.py para monitorear el estado de los sensores durante la ejecución, y velocity_logger.py para registrar todos los datos de la navegación en un archivo CSV que nos permite analizar el comportamiento posteriormente.
 
-2. **Cuadrático:** F = k * d²
-   - Crece con el cuadrado de la distancia
-   - Mayor aceleración al estar lejos
+Para ejecutar este script necesitamos primero haber configurado los puntos de navegación usando el script point_manager.py, que genera el archivo points.json en la carpeta data. Este archivo JSON contiene la estructura con dos puntos principales: q_i que representa la posición inicial del robot con coordenadas x e y en centímetros, y theta que es la orientación inicial del robot en grados (donde 0 grados apunta hacia el eje positivo X, y los ángulos crecen en sentido antihorario siguiendo la convención matemática estándar). El punto q_f contiene únicamente las coordenadas x e y del objetivo final, ya que no necesitamos especificar una orientación para la meta.
 
-3. **Cónico:** F = k * min(d, d_sat)
-   - Saturación en distancia máxima
-   - Velocidad constante cuando d > 100 cm
-
-4. **Exponencial:** F = k * (1 - e^(-d/λ))
-   - Convergencia asintótica
-   - Aceleración suave al inicio
-```
+Adicionalmente, podemos manipular manualmente el archivo JSON para modificar estos valores sin necesidad de ejecutar el script point_manager.py nuevamente. Esto nos permite probar diferentes configuraciones de puntos de navegación editando directamente los valores de x, y y theta en el archivo. Una vez que tenemos este archivo configurado, podemos ejecutar PRM01_P01.py especificando qué tipo de función de potencial queremos usar mediante el argumento --potential.
 
 ## Parte 02 - Campo de Potencial Combinado
 
-### Objetivo
-Añadir campo de potencial repulsivo para evasión de obstáculos detectados por sensores IR, combinándolo con el potencial atractivo.
+En el segundo código PRM01_P02.py extendimos la funcionalidad anterior para incluir un campo de potencial repulsivo que evita obstáculos. Esta implementación combina el campo atractivo hacia la meta con fuerzas repulsivas calculadas a partir de las lecturas de los sensores infrarrojos del robot.
 
-### Metodología
+La diferencia principal con respecto a PRM01_P01.py es que ahora utilizamos la función combined_potential_speeds() del módulo potential_fields.py en lugar de attractive_wheel_speeds(). Esta función toma en cuenta las lecturas de los sensores IR para calcular obstáculos en el entorno y generar fuerzas repulsivas que modifican la trayectoria del robot.
 
-El sistema utiliza una estrategia híbrida que combina:
+El sistema funciona leyendo continuamente los siete sensores infrarrojos del robot, estimando la posición de los obstáculos basándose en un modelo físico que relaciona la intensidad de la señal con la distancia, y luego calculando fuerzas repulsivas que se combinan vectorialmente con la fuerza atractiva hacia el objetivo. El resultado es una navegación que se ajusta dinámicamente para evitar colisiones mientras mantiene el objetivo de llegar a la meta.
 
-1. **Velocidad base del potencial atractivo**
-   - Determina la velocidad de avance hacia la meta
-   - Independiente de los obstáculos
+Este script también permite ajustar parámetros del potencial repulsivo mediante argumentos de línea de comandos, como la ganancia repulsiva y la distancia de influencia, lo que nos permite experimentar con diferentes configuraciones según las características del entorno.
 
-2. **Dirección ajustada por fuerzas repulsivas**
-   - Los obstáculos modifican el ángulo de movimiento
-   - Combinación ponderada según proximidad del obstáculo
+## Funciones de Potencial Implementadas
 
-3. **Reducción de velocidad por proximidad**
-   - Slowdown factor proporcional a la fuerza repulsiva
-   - Mantiene velocidad mínima para ejecutar maniobras
+Implementamos cuatro funciones de potencial atractivo diferentes, cada una con características particulares que afectan el comportamiento del robot durante la navegación:
 
-### Fórmulas Implementadas
+**Función Lineal:** F = k * d
 
-**Fuerza Repulsiva:**
-```
-F_rep = k_rep * (I/1000) * (1/d - 1/d_inf)
+Esta función genera una fuerza directamente proporcional a la distancia al objetivo. El comportamiento es predecible y directo, manteniendo una velocidad aproximadamente constante durante todo el trayecto una vez que se alcanza la velocidad máxima.
 
-donde:
-  k_rep = 500.0 (ganancia repulsiva)
-  I = valor del sensor IR (0-4095)
-  d = distancia estimada al obstáculo
-  d_inf = 30.0 cm (distancia de influencia)
-```
+**Función Cuadrática:** F = k * d²
 
-**Estimación de Distancia (modelo físico I ∝ 1/d²):**
-```
-d = 5.0 * sqrt(1000 / I)
+En esta función la fuerza crece con el cuadrado de la distancia, lo que significa que el robot acelera más agresivamente cuando está lejos del objetivo y desacelera de forma más suave cuando se acerca. Esto puede resultar en trayectos más rápidos pero requiere más control cerca de la meta.
 
-Calibración basada en:
-  - I = 1000 corresponde a d = 5 cm
-  - Rango válido: 5-40 cm
-```
+**Función Cónica:** F = k * min(d, d_sat)
 
-**Combinación de Ángulos:**
-```
-w_rep = min(|F_rep| / 5.0, 0.9)
-w_att = 1 - w_rep
+Esta función incluye una saturación a una distancia máxima determinada. Cuando el robot está más lejos que esta distancia de saturación, la velocidad se mantiene constante, y solo cuando se acerca comienza a reducir la velocidad. Esto es útil para navegación en espacios grandes donde queremos mantener velocidad constante en tramos largos.
 
-θ_combined = atan2(
-  w_att * sin(θ_goal) + w_rep * sin(θ_rep),
-  w_att * cos(θ_goal) + w_rep * cos(θ_rep)
-)
-```
+**Función Exponencial:** F = k * (1 - e^(-d/λ))
 
-### Parámetros de Configuración
+La función exponencial presenta una convergencia asintótica, acelerando rápidamente al inicio pero desacelerando de forma muy suave conforme se acerca al objetivo. Esta característica puede ser útil cuando queremos un comportamiento más suave cerca de la meta.
 
-```python
-# Potencial Atractivo
-K_LINEAR = 0.25
-K_QUADRATIC = 0.01
-K_CONIC = 0.15
-K_EXPONENTIAL = 2.5
-K_ANGULAR = 1.2
+## Configuración y Uso
 
-# Potencial Repulsivo
-K_REPULSIVE = 500.0
-D_INFLUENCE = 30.0  # cm
-D_SAFE = 8.0        # cm
-
-# Control de Velocidad
-V_MAX_CM_S = 48.0
-V_MIN_CM_S = 0.0
-CONTROL_DT = 0.05   # 20 Hz
-
-# Seguridad - Sistema Escalonado (v2.0)
-IR_THRESHOLD_EMERGENCY = 800   # PARAR: <5cm
-IR_THRESHOLD_CRITICAL = 400    # V_max=10cm/s: 5-10cm
-IR_THRESHOLD_WARNING = 200     # V_max=20cm/s: 10-20cm
-IR_THRESHOLD_CAUTION = 100     # V_max=30cm/s: 20-40cm
-```
-
-### Uso
+Antes de ejecutar cualquiera de los scripts principales, necesitamos configurar los puntos de navegación. Para esto ejecutamos el script point_manager.py que nos permite controlar el robot manualmente mediante teclado y marcar las posiciones inicial y final usando los botones físicos del robot:
 
 ```bash
-# Navegación básica con potencial cónico
+python utils/point_manager.py
+```
+
+Este script genera el archivo points.json en la carpeta data con las coordenadas de los puntos q_i (inicial) y q_f (final) que utilizaremos en la navegación.
+
+Una vez configurados los puntos, podemos ejecutar el script de la Parte 01 con cualquiera de las funciones de potencial disponibles:
+
+```bash
+python PRM01_P01.py --potential linear
+python PRM01_P01.py --potential quadratic
+python PRM01_P01.py --potential conic
+python PRM01_P01.py --potential exponential
+```
+
+Para la Parte 02, ejecutamos PRM01_P02.py con opciones similares, pero también podemos ajustar los parámetros del potencial repulsivo:
+
+```bash
 python PRM01_P02.py --potential conic
-
-# Ajustar parámetros repulsivos
 python PRM01_P02.py --potential conic --k-rep 500 --d-influence 30
-
-# Modo debug
-python PRM01_P02.py --potential conic --debug
 ```
 
-## 🧪 Scripts de Prueba y Análisis
+Ambos scripts aceptan el argumento --debug para mostrar información detallada durante la ejecución, y --robot para especificar el nombre Bluetooth del robot si es diferente al configurado por defecto de nuestro grupo 01.
 
-### Test del Sistema de Seguridad
+## Módulos del Sistema
+
+El sistema está compuesto por varios módulos que trabajan juntos para proporcionar la funcionalidad completa:
+
+**config.py:** Contiene todos los parámetros configurables del sistema centralizados en un solo lugar. Aquí definimos velocidades máximas, ganancias de control, umbrales de sensores, y parámetros específicos para cada función de potencial. Esto facilita la calibración y ajuste del sistema sin modificar el código principal.
+
+**potential_fields.py:** Implementa las funciones de cálculo de potencial tanto atractivo como repulsivo. Contiene las cuatro variantes de potencial atractivo, la función para convertir sensores IR en posiciones de obstáculos, el cálculo de fuerzas repulsivas, y la combinación de ambas fuerzas para generar velocidades de rueda.
+
+**safety.py:** Proporciona funciones de seguridad que protegen al robot limitando las velocidades a rangos seguros y detectando obstáculos mediante análisis de los sensores IR. Incluye un sistema de umbrales escalonados que reduce gradualmente la velocidad según la proximidad de obstáculos detectados.
+
+**sensor_logger.py:** Implementa un sistema de monitoreo asíncrono que imprime periódicamente el estado de todos los sensores del robot durante la navegación, incluyendo posición odométrica, lecturas de sensores IR, estado de bumpers y nivel de batería.
+
+**velocity_logger.py:** Registra todos los datos relevantes de la navegación en archivos CSV con timestamps únicos. Estos archivos contienen la trayectoria completa, velocidades calculadas, fuerzas aplicadas, y otra información que nos permite analizar el comportamiento del sistema posteriormente.
+
+## Salida y Análisis
+
+Durante la ejecución, el sistema genera archivos CSV en la carpeta logs con nombres que incluyen el tipo de potencial utilizado y un timestamp. Estos archivos contienen información detallada de cada iteración del bucle de control, incluyendo posición, velocidades, distancias, errores angulares, y en el caso de PRM01_P02.py, información sobre las fuerzas repulsivas y obstáculos detectados.
+
+Para analizar estos datos de forma comparativa, desarrollamos el script analyze_results.py ubicado en la carpeta analysis. Este script procesa automáticamente todos los archivos CSV generados en la carpeta logs y calcula métricas clave como tiempo total de navegación, error final, distancia recorrida, y velocidades promedio y máximas. La salida muestra una tabla comparativa que nos permite identificar qué función de potencial tuvo mejor desempeño según diferentes criterios.
+
+Para visualizar el funcionamiento del sistema de seguridad basado en umbrales escalonados, creamos el script visualize_safety.py también en la carpeta analysis. Este script genera tres gráficos que muestran la relación entre los valores de los sensores IR y las velocidades máximas permitidas, la estimación de distancias basada en el modelo físico de los sensores, y una tabla comparativa visual de los diferentes niveles de seguridad. Las imágenes generadas se guardan en la carpeta images.
+
+Para ejecutar estos scripts de análisis:
 
 ```bash
-# Ver demostración de umbrales
-python test_safety_thresholds.py
-
-# Test rápido de navegación con logging
-python quick_test.py
-
-# Comparar logs antiguos vs nuevos
-python compare_logs.py
+python analysis/analyze_results.py
+python analysis/visualize_safety.py
 ```
 
-### Análisis de Resultados
-
-```bash
-# Generar gráficas de telemetría
-python analyze_results.py logs/velocities_conic_combined_YYYYMMDD_HHMMSS.csv
-```
-
-Genera:
-- Trayectoria en el plano XY
-- Evolución de velocidades con niveles de seguridad
-- Fuerzas atractivas y repulsivas
-- Detección de obstáculos
-- Distribución de niveles de seguridad
-
-## Calibración de Sensores IR
-
-Los sensores IR están calibrados según datos experimentales a 5 cm:
-
-| Sensor | Ángulo | Posición | Valor típico a 5cm |
-|--------|--------|----------|-------------------|
-| 0 | +65.3° | Lateral izquierdo | 774-1386 |
-| 1 | +38.0° | Intermedio izq | 1121-1123 |
-| 2 | +20.0° | Frontal izq | 268-291 |
-| 3 | -3.0° | Centro | 1044-1046 |
-| 4 | -14.25° | Frontal der | 895-898 |
-| 5 | -34.0° | Intermedio der | 669-676 |
-| 6 | -65.3° | Lateral derecho | 900-902 |
-
-Valores de referencia:
-- Perpendicular: 1300-1400
-- Frontal directo: 900-1100
-- Ángulo 45°: 600-700
-- Ángulo oblicuo: 250-300
-
-## Comportamiento del Sistema
-
-### Sin Obstáculos
-- Navegación directa hacia la meta
-- Velocidad determinada por función de potencial
-- Corrección angular suave
-
-### Con Obstáculos
-- Detección mediante sensores IR
-- Reducción de velocidad proporcional a proximidad
-- Giro para evadir según posición del obstáculo
-- Velocidad mínima de 1 cm/s para maniobras efectivas
-
-### Criterios de Detención
-- Llegada a meta: distancia < 3 cm
-- Colisiones físicas: activación de bumpers
-- Máximo de colisiones: 3 intentos
-
-## Solución de Problemas
-
-### El robot no evade obstáculos
-- Verificar K_REPULSIVE (debe ser ~500)
-- Comprobar calibración de sensores IR
-- Revisar D_INFLUENCE (30 cm recomendado)
-
-### El robot oscila sin avanzar
-- Aumentar velocidad mínima de evasión
-- Reducir K_ANGULAR si gira demasiado
-- Verificar que angle_factor_min >= 0.1
-
-### Colisiones frecuentes
-- Aumentar K_REPULSIVE
-- Reducir V_MAX_CM_S
-- Aumentar D_INFLUENCE
-
-## Archivos de Salida
-
-Los logs se guardan en `logs/` con timestamp:
-
-```
-velocities_[tipo]_[YYYYMMDD]_[HHMMSS].csv
-```
-
-Contiene:
-- Timestamp
-- Posición (x, y, θ)
-- Distancia a meta
-- Velocidades (v_left, v_right, v_linear, ω)
-- Fuerzas (atractiva, repulsiva, total)
-- Número de obstáculos detectados
-- Tipo de potencial
-
-## Notas de Implementación
-
-### Convención de Ángulos
-- Marco global: θ = 0° apunta a +X (este)
-- Crecimiento antihorario (convención atan2)
-- Ángulos de sensores: desde el frente del robot
-  - Positivos: hacia la izquierda
-  - Negativos: hacia la derecha
-
-### Estrategia de Evasión
-1. Calcular velocidad base del potencial atractivo
-2. Detectar obstáculos y calcular fuerzas repulsivas
-3. Combinar ángulos de atracción y repulsión
-4. Aplicar reducción de velocidad según proximidad
-5. Mantener velocidad mínima para ejecutar maniobras
-
-### Limitaciones
-- Posibles mínimos locales en configuraciones de obstáculos complejas
-- Alcance limitado de sensores IR (~40 cm efectivo)
-- Comportamiento subóptimo en pasillos estrechos
-
-## Referencias
-
-- iRobot Create 3 Documentation
-- Khatib, O. (1986). Real-time obstacle avoidance for manipulators and mobile robots
-- Calibración experimental de sensores IR (ver `Calibracion/CALIBRACION_create3.md`)
+Esta información nos permite realizar análisis comparativos entre las diferentes funciones de potencial, evaluar el rendimiento del sistema, y ajustar parámetros según sea necesario para mejorar el comportamiento en diferentes condiciones de navegación.

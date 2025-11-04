@@ -2,18 +2,42 @@
 """
 Visualización gráfica del sistema de umbrales escalonados
 
-Genera gráficos que muestran:
-1. Relación IR → Velocidad Máxima
-2. Relación IR → Distancia Estimada
-3. Zonas de seguridad coloreadas
+Autores: Alan Salazar, Yago Ramos
+Fecha: 4 de noviembre de 2025
+Institución: UIE Universidad Intercontinental de la Empresa
+Asignatura: Robots Autónomos - Profesor Eladio Dapena
+Robot SDK: irobot-edu-sdk (visualización offline)
 
-Autores: Yago Ramos - Salazar Alan
-Fecha: 28 de octubre de 2025
+OBJETIVOS PRINCIPALES:
+
+En este módulo implementamos herramientas de visualización que generan gráficos
+y tablas que explican el funcionamiento del sistema de umbrales escalonados de
+seguridad. Nuestro objetivo principal era crear visualizaciones claras que
+permitieran entender cómo el sistema ajusta la velocidad según la proximidad de
+obstáculos detectados mediante sensores IR.
+
+Los objetivos específicos que buscamos alcanzar incluyen:
+
+1. Generar gráficos que muestren la relación entre valores de sensores IR y
+   velocidad máxima permitida, facilitando la comprensión del sistema escalonado
+2. Visualizar el modelo físico de estimación de distancia basado en la relación
+   inversa al cuadrado entre intensidad IR y distancia
+3. Crear una tabla de referencia rápida que muestre todos los umbrales, velocidades
+   límite y distancias estimadas en un formato visualmente atractivo
+4. Guardar todas las visualizaciones como archivos PNG de alta resolución para
+   uso en documentación y presentaciones
+5. Proporcionar opción de visualización interactiva durante el desarrollo para
+   ajustar parámetros si es necesario
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
-import config
+import sys
+from pathlib import Path
+
+# Añadir el directorio padre al path para importar módulos
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src import config
 
 
 def ir_to_distance(ir_value):
@@ -189,20 +213,24 @@ def main():
     print("📊 GENERANDO VISUALIZACIONES DEL SISTEMA DE SEGURIDAD")
     print("="*70 + "\n")
     
+    # Crear carpeta de imágenes si no existe
+    images_dir = Path(__file__).parent.parent / "images"
+    images_dir.mkdir(exist_ok=True)
+    
     print("1️⃣  Generando gráfico IR vs V_max...")
     fig1 = plot_ir_vs_vmax()
-    fig1.savefig('safety_ir_vs_vmax.png', dpi=300, bbox_inches='tight')
-    print("   ✅ Guardado: safety_ir_vs_vmax.png")
+    fig1.savefig(images_dir / 'safety_ir_vs_vmax.png', dpi=300, bbox_inches='tight')
+    print(f"   ✅ Guardado: {images_dir / 'safety_ir_vs_vmax.png'}")
     
     print("\n2️⃣  Generando gráfico IR vs Distancia...")
     fig2 = plot_ir_vs_distance()
-    fig2.savefig('safety_ir_vs_distance.png', dpi=300, bbox_inches='tight')
-    print("   ✅ Guardado: safety_ir_vs_distance.png")
+    fig2.savefig(images_dir / 'safety_ir_vs_distance.png', dpi=300, bbox_inches='tight')
+    print(f"   ✅ Guardado: {images_dir / 'safety_ir_vs_distance.png'}")
     
     print("\n3️⃣  Generando tabla comparativa...")
     fig3 = plot_comparison_table()
-    fig3.savefig('safety_table.png', dpi=300, bbox_inches='tight')
-    print("   ✅ Guardado: safety_table.png")
+    fig3.savefig(images_dir / 'safety_table.png', dpi=300, bbox_inches='tight')
+    print(f"   ✅ Guardado: {images_dir / 'safety_table.png'}")
     
     print("\n" + "="*70)
     print("✅ Visualizaciones generadas correctamente")
