@@ -1,19 +1,63 @@
 """
-Permite tele-operar al robot (WASD) y guardar q_i y q_f
-al pulsar los botones físicos del Create 3:
- - Botón 1 (•)  → posición inicial q_i
- - Botón 2 (••) → posición final   q_f
-Tras marcar los dos puntos se crea/actualiza points.json
+Herramienta de teleoperación para definir puntos de navegación
+
+Autores: Yago Ramos - Salazar Alan
+Fecha de finalización: 28 de octubre de 2025
+Institución: UIE - Robots Autónomos
+Robot SDK: irobot-edu-sdk
+
+Objetivo:
+    Proporcionar una interfaz interactiva para que el operador mueva el robot
+    manualmente hasta las posiciones deseadas y las registre como punto inicial
+    (q_i) y punto final (q_f) mediante los botones físicos del Create 3.
+
+Comportamiento esperado:
+    - Permitir control manual del robot con teclas WASD del teclado
+    - Resetear la odometría al inicio para usar origen (0,0) como referencia
+    - Capturar posición y orientación actual al presionar botón físico 1 (q_i)
+    - Capturar posición objetivo al presionar botón físico 2 (q_f)
+    - Validar que ambos puntos estén separados al menos 10 cm
+    - Generar archivo points.json con formato estandarizado
+    - Mostrar realimentación visual de posiciones marcadas en consola
+
+Controles:
+    Teclado:
+        W - Avanzar recto
+        S - Retroceder
+        A - Girar a la izquierda
+        D - Girar a la derecha
+        ESC - Salir de teleoperación
+    
+    Botones físicos del robot:
+        Botón 1 (•) - Guardar posición actual como q_i
+        Botón 2 (••) - Guardar posición actual como q_f
+
+Parámetros:
+    - VEL: Velocidad de avance/retroceso (15 cm/s desde config.TELEOP_VEL)
+    - GIRO: Velocidad de giro (8 cm/s desde config.TELEOP_GIRO)
+
+Salida:
+    Archivo points.json con estructura:
+    {
+        "q_i": {"x": float, "y": float, "theta": float},
+        "q_f": {"x": float, "y": float, "theta": float}
+    }
 """
-import json, asyncio, threading, queue, time, math
+import json
+import asyncio
+import threading
+import queue
+import time
+import math
 from pathlib import Path
 from irobot_edu_sdk.backend.bluetooth import Bluetooth
 from irobot_edu_sdk.robots import Create3, event
+import config
 
 # ---------- Conexión ----------
-robot = Create3(Bluetooth("C3_UIEC_Grupo1"))
+robot = Create3(Bluetooth(config.BLUETOOTH_NAME))
 connected_evt, cmd_q = threading.Event(), queue.Queue()
-VEL, GIRO = 20, 10           # cm/s
+VEL, GIRO = config.TELEOP_VEL, config.TELEOP_GIRO
 
 # ---------- Tele-operación (teclado) ----------
 try:
@@ -68,18 +112,64 @@ async def btn2(robot):
 @event(robot.when_play)
 async def play(robot):
     connected_evt.set()
-    print("MANUAL MODE: mueve con WASD y pulsa • para q_i, •• para q_f.")
+    await robot.reset_navigation()  # Resetear odometría
+    print("\n" + "="*60)
+    print("🎮 MODO TELEOPERACIÓN - Marcado de Puntos")
+    print("="*60)
+    print("Controles:")
+    print("  W/S = Avanzar/Retroceder")
+    print("  A/D = Girar Izquierda/Derecha")
+    print("  ESC = Salir")
+    print("\nBotones del Robot:")
+    print("  Botón 1 (•)  = Marcar q_i (inicio)")
+    print("  Botón 2 (••) = Marcar q_f (final)")
+    print("="*60)
+    
+    last_pos_print = time.time()
+    
     while True:
-        if len(buttons_pressed)==2:
-            # Guardamos JSON y salimos
-            Path('points.json').write_text(json.dumps(points, indent=4))
-            print("✅ points.json creado. ¡Listo!")
-            await robot.set_wheel_speeds(0,0)
-            break
-        # ejecuta última orden de velocidad
+        # Mostrar posición cada 2 segundos
+        if time.time() - last_pos_print > 2.0:
+            pos = await robot.get_position()
+            print(f"\n📍 Posición actual: x={pos.x:.1f}, y={pos.y:.1f}, θ={pos.heading:.1f}°")
+            if 'q_i' in points:
+                print(f"   ✅ q_i marcado: {points['q_i']}")
+            if 'q_f' in points:
+                print(f"   ✅ q_f marcado: {points['q_f']}")
+            last_pos_print = time.time()
+        
+        # Verificar si ya tenemos ambos puntos
+        if len(buttons_pressed) == 2:
+            # Validar que sean diferentes
+            dist = math.hypot(
+                points['q_f']['x'] - points['q_i']['x'],
+                points['q_f']['y'] - points['q_i']['y']
+            )
+            
+            if dist < 10.0:
+                print("\n⚠️  Los puntos están muy cerca (< 10 cm). Intenta de nuevo.")
+                buttons_pressed.clear()
+                points.clear()
+            else:
+                # Guardar y salir
+                output_file = Path(config.POINTS_FILE)
+                output_file.write_text(json.dumps(points, indent=4))
+                print("\n" + "="*60)
+                print("✅ PUNTOS GUARDADOS EXITOSAMENTE")
+                print("="*60)
+                print(f"Archivo: {output_file.absolute()}")
+                print(f"q_i: {points['q_i']}")
+                print(f"q_f: {points['q_f']}")
+                print(f"Distancia: {dist:.1f} cm")
+                print("="*60)
+                await robot.set_wheel_speeds(0, 0)
+                break
+        
+        # Ejecutar última orden de velocidad
         if not cmd_q.empty():
             v_l, v_r = cmd_q.get_nowait()
             await robot.set_wheel_speeds(v_l, v_r)
+        
         await robot.wait(0.05)
 
 def main():

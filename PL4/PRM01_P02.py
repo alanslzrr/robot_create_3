@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script principal de navegación con campos de potencial atractivo
+Script de navegación con campos de potencial combinados (atractivo + repulsivo)
 
 Autores: Yago Ramos - Salazar Alan
 Fecha de finalización: 28 de octubre de 2025
@@ -9,25 +9,32 @@ Institución: UIE - Robots Autónomos
 Robot SDK: irobot-edu-sdk
 
 Objetivo:
-    Implementar un sistema completo de navegación autónoma que lleve al robot
-    desde una posición inicial (q_i) hasta una posición final (q_f) utilizando
-    campos de potencial atractivo. El sistema integra control de velocidad,
-    detección de obstáculos, manejo de colisiones y registro de datos para
-    análisis comparativo de diferentes funciones de potencial.
+    Implementar navegación autónoma combinando campo de potencial atractivo
+    (que lleva al robot hacia la meta) con campo de potencial repulsivo
+    (que evita obstáculos detectados por sensores IR). El sistema calcula
+    la fuerza resultante y genera velocidades de rueda apropiadas para
+    alcanzar el objetivo evitando colisiones.
 
 Comportamiento esperado:
-    - Cargar puntos de navegación desde points.json generado previamente
+    - Cargar puntos de navegación desde points.json
     - Conectar con el robot vía Bluetooth y resetear odometría
     - Ejecutar bucle de control a 20 Hz (cada 50 ms):
-        * Leer posición actual del robot
-        * Calcular velocidades usando función de potencial seleccionada
-        * Aplicar correcciones por detección de obstáculos (sensores IR)
-        * Saturar velocidades dentro de límites seguros
-        * Enviar comandos de velocidad a las ruedas
-        * Registrar datos en CSV para análisis posterior
-    - Detectar llegada a meta (distancia < 3 cm) y detener navegación
-    - Manejar colisiones físicas con bumpers (máximo 3 antes de abortar)
+        * Leer posición actual y sensores IR
+        * Calcular fuerza atractiva hacia la meta
+        * Calcular fuerza repulsiva de obstáculos detectados
+        * Combinar ambas fuerzas y convertir a velocidades de rueda
+        * Enviar comandos de velocidad al robot
+        * Registrar datos en CSV para análisis
+    - Detectar llegada a meta (distancia < 3 cm)
+    - Manejar colisiones físicas con bumpers
     - Permitir interrupción segura con Ctrl+C
+
+Diferencias con P01:
+    - Usa combined_potential_speeds() en lugar de attractive_wheel_speeds()
+    - Considera obstáculos detectados por sensores IR en tiempo real
+    - Calcula fuerzas repulsivas inversamente proporcionales a distancia²
+    - Combina vectores de fuerza atractiva y repulsiva
+    - Registra información adicional sobre obstáculos en el CSV
 
 Funciones de potencial soportadas:
     - linear: Proporcional a distancia (F = 0.25·d)
@@ -35,15 +42,22 @@ Funciones de potencial soportadas:
     - conic: Con saturación (F = 0.15·min(d,100)·2)
     - exponential: Convergencia asintótica (F = 2.5·(1-e^(-d/50))·20)
 
+Parámetros de potencial repulsivo:
+    - K_REPULSIVE: Ganancia repulsiva (800.0 default)
+    - D_INFLUENCE: Distancia de influencia (40.0 cm)
+    - Basado en lecturas de sensores IR frontales (0-6)
+
 Argumentos de línea de comandos:
-    --potential: Tipo de función de potencial a utilizar (default: linear)
+    --potential: Tipo de función de potencial atractivo (default: linear)
     --robot: Nombre Bluetooth del robot (default: C3_UIEC_Grupo1)
     --points: Archivo JSON con waypoints (default: points.json)
+    --k-rep: Ganancia repulsiva (default: 800.0)
+    --d-influence: Distancia de influencia repulsiva (default: 40.0 cm)
     --debug: Mostrar información de debug cada 10 iteraciones
 
 Módulos integrados:
-    - potential_fields: Cálculo de velocidades según función de potencial
-    - safety: Saturación y detección de obstáculos
+    - potential_fields: Cálculo de fuerzas atractivas, repulsivas y combinadas
+    - safety: Saturación y detección de emergencias
     - sensor_logger: Monitoreo de sensores en tiempo real
     - velocity_logger: Registro de datos de control en CSV
 
@@ -51,7 +65,8 @@ Salida:
     Archivo CSV en logs/ con timestamp único conteniendo:
     - Trayectoria completa (x, y, theta por iteración)
     - Velocidades calculadas (v_left, v_right, v_linear, omega)
-    - Errores de control (distance, angle_error)
+    - Fuerzas repulsivas (fx, fy)
+    - Número de obstáculos detectados
     - Tipo de función de potencial utilizada
 """
 
@@ -68,8 +83,8 @@ from irobot_edu_sdk.robots import Create3
 
 # Importar módulos propios
 import config
-from potential_fields import attractive_wheel_speeds, POTENTIAL_TYPES, reset_velocity_ramp
-from safety import saturate_wheel_speeds, detect_obstacle, emergency_stop_needed, apply_obstacle_slowdown
+from potential_fields import combined_potential_speeds, POTENTIAL_TYPES, reset_velocity_ramp
+from safety import saturate_wheel_speeds, emergency_stop_needed, apply_obstacle_slowdown
 from sensor_logger import SensorLogger
 from velocity_logger import VelocityLogger
 
@@ -120,7 +135,7 @@ def load_points(filename):
     return q_i, q_f
 
 
-def print_mission_info(q_i, q_f, robot_name, potential_type='linear'):
+def print_mission_info(q_i, q_f, robot_name, potential_type='linear', k_rep=None, d_influence=None):
     """Imprime información de la misión"""
     distance = math.hypot(q_f[0] - q_i[0], q_f[1] - q_i[1])
     angle = math.degrees(math.atan2(q_f[1] - q_i[1], q_f[0] - q_i[0]))
@@ -137,11 +152,16 @@ def print_mission_info(q_i, q_f, robot_name, potential_type='linear'):
     else:
         k_lin = config.K_LINEAR
     
+    if k_rep is None:
+        k_rep = config.K_REPULSIVE
+    if d_influence is None:
+        d_influence = config.D_INFLUENCE
+    
     print("\n" + "="*60)
-    print("🚀 NAVEGACIÓN CON POTENCIAL ATRACTIVO - Parte 3.1")
+    print("🚀 NAVEGACIÓN CON POTENCIAL COMBINADO - Parte 3.2")
     print("="*60)
     print(f"Robot: {robot_name}")
-    print(f"Potencial: {potential_type.upper()}")
+    print(f"Potencial Atractivo: {potential_type.upper()}")
     print(f"\n📍 Punto Inicial (q_i):")
     print(f"   x = {q_i[0]:.2f} cm")
     print(f"   y = {q_i[1]:.2f} cm")
@@ -152,8 +172,10 @@ def print_mission_info(q_i, q_f, robot_name, potential_type='linear'):
     print(f"\n📏 Distancia a recorrer: {distance:.1f} cm")
     print(f"📐 Ángulo hacia meta: {angle:.1f}°")
     print(f"\n⚙️  Parámetros de control:")
-    print(f"   K_lineal = {k_lin}")
+    print(f"   K_atractivo = {k_lin}")
     print(f"   K_angular = {config.K_ANGULAR}")
+    print(f"   K_repulsivo = {k_rep}")
+    print(f"   D_influencia = {d_influence} cm")
     print(f"   V_max = {config.V_MAX_CM_S} cm/s")
     print(f"   Tolerancia = {config.TOL_DIST_CM} cm")
     print("="*60 + "\n")
@@ -163,31 +185,34 @@ def print_mission_info(q_i, q_f, robot_name, potential_type='linear'):
 #  CONTROLADOR PRINCIPAL
 # ══════════════════════════════════════════════════════════
 
-class AttractiveFieldNavigator:
+class CombinedPotentialNavigator:
     """
-    Navegador basado en campo de potencial atractivo.
-    Integra sensores, seguridad y control.
+    Navegador basado en campo de potencial combinado (atractivo + repulsivo).
+    Integra sensores IR, seguridad y control.
     """
     
-    def __init__(self, robot, q_goal, potential_type='linear', debug=False):
+    def __init__(self, robot, q_goal, potential_type='linear', k_rep=None, d_influence=None, debug=False):
         self.robot = robot
         self.q_goal = q_goal
         self.potential_type = potential_type
+        self.k_rep = k_rep or config.K_REPULSIVE
+        self.d_influence = d_influence or config.D_INFLUENCE
         self.debug = debug
         self.logger = SensorLogger(robot)
-        self.vel_logger = VelocityLogger(potential_type)
+        self.vel_logger = VelocityLogger(f"{potential_type}_combined")
         self.running = False
         
     async def navigate(self):
         """
-        Ejecuta la navegación desde la posición actual hasta q_goal.
+        Ejecuta la navegación desde la posición actual hasta q_goal usando
+        potencial combinado (atractivo + repulsivo).
         
         Returns:
             bool: True si llegó exitosamente, False si hubo error
         """
         # Resetear odometría
         await self.robot.reset_navigation()
-        print(f"🔄 Navegación iniciada con potencial: {self.potential_type}\n")
+        print(f"🔄 Navegación iniciada con potencial combinado: {self.potential_type}\n")
         
         # Resetear rampa de aceleración
         reset_velocity_ramp()
@@ -213,10 +238,17 @@ class AttractiveFieldNavigator:
                 ir_sensors = ir_prox.sensors if hasattr(ir_prox, 'sensors') else []
                 bumpers = await self.robot.get_bumpers()
                 
-                # Calcular potencial atractivo CON TIPO SELECCIONADO
-                v_left, v_right, distance, info = attractive_wheel_speeds(
-                    q, self.q_goal, potential_type=self.potential_type
+                # Calcular potencial COMBINADO (atractivo + repulsivo)
+                v_left, v_right, distance, info = combined_potential_speeds(
+                    q, self.q_goal, 
+                    ir_sensors=ir_sensors,
+                    k_rep=self.k_rep,
+                    d_influence=self.d_influence,
+                    potential_type=self.potential_type
                 )
+                
+                # NO aplicar slowdown por IR - solo evadir con potencial repulsivo
+                # El robot debe seguir avanzando y esquivando, no detenerse
                 
                 # LOG DE VELOCIDADES
                 self.vel_logger.log(
@@ -235,7 +267,7 @@ class AttractiveFieldNavigator:
                     print("\n" + "="*60)
                     print("🎯 META ALCANZADA")
                     print("="*60)
-                    print(f"Potencial usado: {self.potential_type}")
+                    print(f"Potencial usado: {self.potential_type} + repulsivo")
                     print(f"Posición final: x={pos.x:.1f}, y={pos.y:.1f}, θ={pos.heading:.1f}°")
                     print(f"Distancia recorrida: {dist_traveled:.1f} cm")
                     print(f"Error a meta: {distance:.1f} cm")
@@ -249,29 +281,38 @@ class AttractiveFieldNavigator:
                     print(f"\n🚨 COLISIÓN {collision_count}/{MAX_COLLISIONS}")
                     
                     if collision_count >= MAX_COLLISIONS:
-                        print(f"❌ Camino bloqueado")
+                        print(f"❌ Camino bloqueado - demasiadas colisiones")
                         self.logger.stop()
                         self.vel_logger.stop()
                         return False
                     
-                    await self.robot.wait(1.5)
+                    # Retroceder un poco
+                    print("   Retrocediendo...")
+                    await self.robot.set_wheel_speeds(-10, -10)
+                    await self.robot.wait(1.0)
+                    await self.robot.set_wheel_speeds(0, 0)
+                    await self.robot.wait(0.5)
                     continue
                 
-                # Aplicar reducción por obstáculos IR
-                v_left, v_right, obs = apply_obstacle_slowdown(v_left, v_right, ir_sensors)
-                
-                # Saturar
+                # Saturar velocidades (ya combinadas)
                 v_left, v_right = saturate_wheel_speeds(v_left, v_right)
                 
                 # Debug
                 if self.debug and iteration % 10 == 0:
-                    print(f"[{iteration:04d}] d={distance:5.1f} v_l={v_left:5.1f} v_r={v_right:5.1f}")
+                    num_obs = info.get('num_obstacles', 0)
+                    fx_rep = info.get('fx_repulsive', 0.0)
+                    fy_rep = info.get('fy_repulsive', 0.0)
+                    print(f"[{iteration:04d}] d={distance:5.1f} obs={num_obs} "
+                          f"F_rep=({fx_rep:6.1f},{fy_rep:6.1f}) "
+                          f"v_l={v_left:5.1f} v_r={v_right:5.1f}")
                 
                 await self.robot.set_wheel_speeds(v_left, v_right)
                 await self.robot.wait(config.CONTROL_DT)
         
         except Exception as e:
             print(f"\n❌ Error durante navegación: {e}")
+            import traceback
+            traceback.print_exc()
             await self.robot.set_wheel_speeds(0, 0)
             self.logger.stop()
             self.vel_logger.stop()
@@ -289,13 +330,14 @@ def main():
     
     # Parsear argumentos
     parser = argparse.ArgumentParser(
-        description="Navegación con potencial atractivo para iRobot Create 3",
+        description="Navegación con potencial combinado (atractivo + repulsivo) para iRobot Create 3",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos de uso:
-  python PRM01_P01.py
-  python PRM01_P01.py --debug
-  python PRM01_P01.py --robot "MiRobot"
+  python PRM01_P02.py
+  python PRM01_P02.py --debug
+  python PRM01_P02.py --potential quadratic --k-rep 1000
+  python PRM01_P02.py --robot "MiRobot" --d-influence 50
         """
     )
     parser.add_argument(
@@ -317,7 +359,19 @@ Ejemplos de uso:
         "--potential",
         choices=POTENTIAL_TYPES,
         default='linear',
-        help=f"Tipo de función de potencial (default: linear)"
+        help=f"Tipo de función de potencial atractivo (default: linear)"
+    )
+    parser.add_argument(
+        "--k-rep",
+        type=float,
+        default=config.K_REPULSIVE,
+        help=f"Ganancia repulsiva (default: {config.K_REPULSIVE})"
+    )
+    parser.add_argument(
+        "--d-influence",
+        type=float,
+        default=config.D_INFLUENCE,
+        help=f"Distancia de influencia repulsiva en cm (default: {config.D_INFLUENCE})"
     )
     
     args = parser.parse_args()
@@ -326,7 +380,8 @@ Ejemplos de uso:
     q_i, q_f = load_points(args.points)
     
     # Mostrar información
-    print_mission_info(q_i, q_f, args.robot, args.potential)
+    print_mission_info(q_i, q_f, args.robot, args.potential, 
+                      k_rep=args.k_rep, d_influence=args.d_influence)
     
     # Conectar al robot
     print(f"🔌 Conectando a '{args.robot}'...")
@@ -369,9 +424,11 @@ Ejemplos de uso:
     @robot.when_play
     async def start_navigation(robot):
         nonlocal navigator, mission_success
-        navigator = AttractiveFieldNavigator(
+        navigator = CombinedPotentialNavigator(
             robot, q_f, 
             potential_type=args.potential,
+            k_rep=args.k_rep,
+            d_influence=args.d_influence,
             debug=args.debug
         )
         mission_success = await navigator.navigate()

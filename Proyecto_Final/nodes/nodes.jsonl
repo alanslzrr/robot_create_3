@@ -1,0 +1,15 @@
+{"id": 1, "name": "Dock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T17:35:37", "source": "init"}
+{"id": 2, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 90.0, "tags": [], "quality": null, "ts": "2025-10-23T17:35:53", "source": "undock"}
+{"id": 3, "name": "tv", "x": -148.3, "y": 81.3, "theta": 174.3, "tags": [], "quality": null, "ts": "2025-10-23T17:36:36", "source": "teleop"}
+{"id": 4, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 90.0, "tags": [], "quality": null, "ts": "2025-10-23T17:37:56", "source": "undock"}
+{"id": 5, "name": "tv", "x": -142.0, "y": 76.0, "theta": 185.3, "tags": [], "quality": null, "ts": "2025-10-23T17:38:44", "source": "teleop"}
+{"id": 6, "name": "mesa1", "x": -133.2, "y": 348.0, "theta": 87.7, "tags": [], "quality": null, "ts": "2025-10-23T17:39:18", "source": "teleop"}
+{"id": 7, "name": "pasillo", "x": 39.6, "y": 271.8, "theta": 336.1, "tags": [], "quality": null, "ts": "2025-10-23T17:39:43", "source": "teleop"}
+{"id": 8, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T17:41:18", "source": "undock"}
+{"id": 9, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T17:59:15", "source": "undock"}
+{"id": 10, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 90.0, "tags": [], "quality": null, "ts": "2025-10-23T18:04:16", "source": "undock"}
+{"id": 11, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T18:15:41", "source": "undock"}
+{"id": 12, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T18:21:52", "source": "undock"}
+{"id": 13, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T18:25:10", "source": "undock"}
+{"id": 14, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 89.9, "tags": [], "quality": null, "ts": "2025-10-23T18:29:54", "source": "undock"}
+{"id": 15, "name": "StartFromDock", "x": 0.0, "y": 0.0, "theta": 90.0, "tags": [], "quality": null, "ts": "2025-10-23T18:35:58", "source": "undock"}

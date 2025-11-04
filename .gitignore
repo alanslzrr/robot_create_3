@@ -43,6 +43,7 @@ ENV/
 # Logs
 *.log
 log/
+.csv
 
 # OS
 .DS_Store

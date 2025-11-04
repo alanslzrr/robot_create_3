@@ -1,0 +1,3 @@
+idx,state,t,dist_cm,deg,odom_dist_cm,odom_deg,err_dist_cm,err_deg
+0,turn_right,2.325,0.0,113.36,1.03,-90.1,1.03,156.54
+1,forward,13.022,195.33,0.0,182.98,0.0,-12.36,0.0
