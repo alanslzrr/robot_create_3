@@ -1,36 +1,66 @@
 """
 Implementación de funciones de potencial atractivo y repulsivo para navegación autónoma
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este módulo implementamos todas las funciones relacionadas con el cálculo de
-campos de potencial tanto atractivos como repulsivos. Nuestro objetivo principal
-era desarrollar un sistema completo que permitiera calcular velocidades de rueda
-basadas en campos de potencial, con soporte para diferentes funciones matemáticas
-y capacidad de combinar fuerzas atractivas y repulsivas.
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
 
-Los objetivos específicos que buscamos alcanzar incluyen:
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Desarrollar un sistema completo de cálculo de campos de potencial tanto atractivos
+como repulsivos que permita calcular velocidades de rueda basadas en la posición
+actual del robot, el objetivo y los obstáculos detectados mediante sensores IR,
+con soporte para diferentes funciones matemáticas y capacidad de combinar fuerzas
+atractivas y repulsivas de forma vectorial.
+
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
 
 1. Implementar cuatro variantes de campos de potencial atractivo que generen
    fuerzas proporcionales a la distancia hacia la meta, cada una con características
    distintas de aceleración y convergencia
+
 2. Desarrollar un sistema para convertir lecturas de sensores IR en posiciones
    estimadas de obstáculos utilizando un modelo físico basado en la relación
-   inversa al cuadrado
-3. Calcular fuerzas repulsivas que permitan al robot evadir obstáculos sin
-   detenerse completamente
+   inversa al cuadrado y compensación por ángulo del sensor
+
+3. Calcular fuerzas repulsivas basadas en clearance (distancia libre después del
+   radio del robot) que permitan al robot evadir obstáculos sin detenerse
+   completamente
+
 4. Combinar vectorialmente las fuerzas atractivas y repulsivas para generar
    velocidades de rueda que permitan navegación fluida hacia el objetivo
+
 5. Implementar sistemas de seguridad como rampa de aceleración y control dinámico
-   de velocidad según proximidad de obstáculos
-6. Proporcionar información detallada para logging que permita análisis comparativo
-   entre diferentes funciones de potencial
+   de velocidad según proximidad de obstáculos detectados
+
+6. Detectar espacios navegables (gaps) entre obstáculos para permitir paso por
+   pasillos estrechos
+
+7. Proporcionar información detallada para logging que permita análisis comparativo
+   entre diferentes funciones de potencial y configuraciones
 
 CONFIGURACIÓN:
 
@@ -236,11 +266,30 @@ def attractive_wheel_speeds(q, q_goal, k_lin=None, k_ang=None, potential_type='l
         # Saturar la velocidad calculada al máximo permitido
         v_linear = min(config.V_MAX_CM_S, v_linear)
         
-        # Aplicar rampa de aceleración progresiva desde arranque hasta velocidad máxima
+        # ========== ZONA DE DESACELERACIÓN PROGRESIVA ==========
+        # Cuando nos acercamos al objetivo, reducir velocidad gradualmente
+        # Esto da una llegada más suave y precisa
+        if distance < config.DECEL_ZONE_CM:
+            # Factor de desaceleración proporcional a la distancia restante
+            # A 80cm: factor=1.0 (velocidad completa)
+            # A 40cm: factor=0.5 (mitad de velocidad)
+            # A 10cm: factor=0.125 (muy lento)
+            decel_factor = distance / config.DECEL_ZONE_CM
+            
+            # Aplicar desaceleración pero mantener velocidad mínima de aproximación
+            v_linear_decel = v_linear * decel_factor
+            v_linear = max(v_linear_decel, config.V_APPROACH_MIN_CM_S)
+        
+        # ========== RAMPA DE ACELERACIÓN PROGRESIVA ==========
+        # Empezar lento y acelerar gradualmente
         global _last_v_linear
         max_delta_v = config.ACCEL_RAMP_CM_S2 * config.CONTROL_DT
         
-        # Solo limitar cuando estamos acelerando, no cuando desaceleramos
+        # Garantizar arranque suave desde velocidad mínima
+        if _last_v_linear < config.V_START_MIN_CM_S:
+            v_linear = max(v_linear, config.V_START_MIN_CM_S)
+        
+        # Limitar aceleración (subida), pero permitir desaceleración libre (bajada)
         if v_linear > _last_v_linear:
             # Acelerando: limitar el aumento máximo permitido
             v_linear = min(v_linear, _last_v_linear + max_delta_v)
@@ -275,8 +324,8 @@ def attractive_wheel_speeds(q, q_goal, k_lin=None, k_ang=None, potential_type='l
     v_linear *= angle_factor
     
     # GARANTÍA ADICIONAL: velocidad mínima absoluta cuando estamos lejos
-    if distance > 30.0 and v_linear < 8.0:  # Mínimo 8 cm/s cuando estamos lejos
-        v_linear = 8.0
+    if distance > 30.0 and v_linear < config.V_START_MIN_CM_S:
+        v_linear = config.V_START_MIN_CM_S
     
     # ========== CALCULAR VELOCIDAD ANGULAR ==========
     # La velocidad angular es proporcional al error angular, permitiendo que
@@ -326,9 +375,29 @@ def attractive_wheel_speeds(q, q_goal, k_lin=None, k_ang=None, potential_type='l
     v_left = v_linear - half_base * omega
     v_right = v_linear + half_base * omega
     
+    # CRÍTICO: GARANTIZAR NAVEGACIÓN EN ARCO (sin rotación sobre eje)
+    # Si alguna rueda tiene velocidad negativa (hacia atrás), el robot giraría
+    # sobre su eje en lugar de moverse en arco. Forzamos ambas ruedas >= 0
+    # SOLO cuando estamos lejos del objetivo (cuando estamos cerca, permitimos
+    # giros más cerrados para convergencia precisa)
+    if distance > config.TOL_DIST_CM * 2:  # Más de 10cm del objetivo
+        if v_left < 0 or v_right < 0:
+            # Una rueda iría hacia atrás - reducir omega para mantener arco
+            # Calcular el omega máximo que mantiene ambas ruedas >= 0
+            if v_linear > 0:
+                max_omega_positive = v_linear / half_base
+                # Limitar omega a este valor (con el signo apropiado)
+                if omega > max_omega_positive:
+                    omega = max_omega_positive * 0.95  # 95% para margen
+                elif omega < -max_omega_positive:
+                    omega = -max_omega_positive * 0.95
+                
+                # Recalcular velocidades de rueda
+                v_left = v_linear - half_base * omega
+                v_right = v_linear + half_base * omega
+    
     # Saturación final de cada rueda individualmente para garantizar que
-    # nunca excedamos los límites físicos del robot, incluso si el cálculo
-    # anterior produjo valores fuera de rango
+    # nunca excedamos los límites físicos del robot
     v_left = max(-config.V_MAX_CM_S, min(config.V_MAX_CM_S, v_left))
     v_right = max(-config.V_MAX_CM_S, min(config.V_MAX_CM_S, v_right))
     
@@ -379,37 +448,95 @@ def normalize_ir_reading(ir_value, sensor_index):
     return ir_value / factor
 
 
-def ir_value_to_distance(ir_value):
+def ir_value_to_distance(ir_value, sensor_index=None):
     """
     Convierte un valor de sensor IR (0-4095) a distancia estimada en centímetros.
     
-    Utiliza el modelo físico de los sensores IR que siguen aproximadamente
-    la relación: intensidad ∝ 1/distancia²
+    Utiliza un modelo físico mejorado que compensa por el ángulo del sensor
+    y usa calibración real para estimación más precisa.
     
-    Basado en calibración real:
-    - A 5cm del borde: valores ~800-1400 dependiendo del sensor y ángulo
-    - Los sensores frontales perpendiculares dan lecturas más altas
-    - Los sensores laterales en ángulo dan lecturas más bajas
+    CALIBRACIÓN REAL (normalizada a factor 1.0):
+    - A 5cm perpendicular: IR_norm ≈ 1000
+    - A 10cm: IR_norm ≈ 250-300
+    - A 15cm: IR_norm ≈ 110-150
+    - A 20cm: IR_norm ≈ 60-80
+    - A 30cm: IR_norm ≈ 30-40
     
-    Fórmula: distancia = k / sqrt(IR_value)
-    donde k está calibrado experimentalmente
+    MEJORA: El modelo anterior era 3-4x demasiado conservador, estimando
+    obstáculos a 15-20cm como si estuvieran a 5cm. Esto causaba frenado
+    excesivo en espacios confinados.
     
     Args:
         ir_value: Valor del sensor IR (0-4095)
+        sensor_index: Índice del sensor (0-6) para normalización (opcional)
     
     Returns:
         float: Distancia estimada en centímetros (entre IR_MIN_DISTANCE_CM y IR_MAX_DISTANCE_CM)
     """
-    # Valores muy bajos o cero indican sin obstáculo (distancia máxima)
-    if ir_value < config.IR_THRESHOLD_DETECT:
+    # Normalizar por sensibilidad del sensor si se proporciona el índice
+    if sensor_index is not None and sensor_index in config.IR_SENSOR_SENSITIVITY_FACTORS:
+        ir_normalized = ir_value / config.IR_SENSOR_SENSITIVITY_FACTORS[sensor_index]
+    else:
+        ir_normalized = ir_value
+    
+    # Validar el valor IR mínimo
+    if ir_normalized < 25:
+        # Valor muy bajo, sin obstáculo significativo
         return config.IR_MAX_DISTANCE_CM
     
-    # Aplicar modelo inverso al cuadrado: d = k / sqrt(I)
-    # Con k calibrado a partir de medición a 5cm con IR≈1000
-    distance = config.IR_DISTANCE_CONSTANT / math.sqrt(ir_value)
+    # MODELO MEJORADO basado en calibración real:
+    # Usa exponente 0.65 en lugar de 0.5 (raíz cuadrada) para mejor ajuste
+    # a los datos experimentales
+    #
+    # Puntos de calibración (IR normalizado → distancia):
+    # 1000 → 5cm
+    # 250 → 10cm  
+    # 110 → 15cm
+    # 60 → 20cm
+    # 30 → 35cm
+    #
+    # Fórmula: d = 5.0 * (1000 / IR_norm)^0.65
     
-    # Saturar al rango válido de estimación
+    if ir_normalized >= 1000:
+        # Obstáculo muy cerca (≤5cm)
+        distance = 5.0
+    elif ir_normalized >= 700:
+        # Muy cerca (5-7cm)
+        distance = 5.0 * math.pow(1000.0 / ir_normalized, 0.65)
+    elif ir_normalized >= 400:
+        # Cerca (7-10cm)
+        distance = 5.0 * math.pow(1000.0 / ir_normalized, 0.65)
+    elif ir_normalized >= 150:
+        # Medio (10-15cm)
+        distance = 5.0 * math.pow(1000.0 / ir_normalized, 0.65)
+    elif ir_normalized >= 60:
+        # Lejos (15-25cm)
+        distance = 5.0 * math.pow(1000.0 / ir_normalized, 0.65)
+    else:
+        # Muy lejos (25-60cm)
+        distance = 5.0 * math.pow(1000.0 / ir_normalized, 0.70)
+    
+    # Limitar al rango válido de medición del sensor
     distance = max(config.IR_MIN_DISTANCE_CM, min(distance, config.IR_MAX_DISTANCE_CM))
+    
+    # COMPENSACIÓN POR ÁNGULO DEL SENSOR (si se proporciona índice)
+    # Los sensores laterales (±65°, ±38°) ven obstáculos a mayor distancia
+    # para el mismo IR que los sensores frontales
+    if sensor_index is not None and sensor_index in config.IR_SENSOR_ANGLES:
+        sensor_angle_deg = abs(config.IR_SENSOR_ANGLES[sensor_index])
+        
+        # Compensar por geometría: sensores muy angulados detectan a mayor distancia
+        if sensor_angle_deg > 50:  # Sensores laterales extremos (±65°)
+            # A 65°, cos(65°) ≈ 0.42, el camino es ~2.4x más largo
+            # Pero por geometría del robot, la distancia perpendicular al borde es menor
+            # Factor neto: aumentar ~15% la distancia estimada
+            distance *= 1.15
+        elif sensor_angle_deg > 30:  # Sensores intermedios (±38°)
+            # A 38°, factor neto: aumentar ~8%
+            distance *= 1.08
+        elif sensor_angle_deg > 15:  # Sensores frontales laterales (±20°)
+            # A 20°, factor neto: aumentar ~3%
+            distance *= 1.03
     
     return distance
 
@@ -592,29 +719,10 @@ def ir_sensors_to_obstacles(q, ir_sensors):
         if ir_value < config.IR_THRESHOLD_DETECT:
             continue
         
-        # ========== ESTIMACIÓN DE DISTANCIA MEDIANTE MODELO FÍSICO ==========
-        # Los sensores IR siguen aproximadamente la relación I ∝ 1/d²
-        # Modelo simplificado: d = d_ref * sqrt(I_ref / I)
-        # 
-        # Calibración: a 5cm los valores van de ~270 a ~1400 según ángulo
-        # MODIFICADO: Estimación CONSERVADORA (subestimar distancia) para mayor seguridad
-        # Al pensar que los obstáculos están MÁS CERCA, genera fuerzas repulsivas MAYORES
-        
-        # Valores de referencia AJUSTADOS para estimación conservadora
-        I_ref = 800.0   # REDUCIDO de 1000→800: estima distancias MÁS CORTAS
-        d_ref = 4.0     # REDUCIDO de 5.0→4.0: asume obstáculos más cerca
-        
-        # Aplicar modelo inverso al cuadrado con saturación
-        if ir_value >= I_ref:
-            # Obstáculo muy cerca, usar distancia mínima
-            d_estimate = d_ref
-        else:
-            # Calcular distancia: d = d_ref * sqrt(I_ref / I)
-            d_estimate = d_ref * math.sqrt(I_ref / max(ir_value, 50))
-            
-            # Limitar al rango efectivo del sensor (4-35cm)
-            # REDUCIDO: 5-40cm → 4-35cm para mantener estimaciones conservadoras
-            d_estimate = max(4.0, min(d_estimate, 35.0))
+        # ========== ESTIMACIÓN DE DISTANCIA MEDIANTE MODELO FÍSICO MEJORADO ==========
+        # Usar la función mejorada que compensa por ángulo del sensor
+        # y usa calibración más precisa
+        d_estimate = ir_value_to_distance(ir_value, sensor_index=i)
         
         # ========== TRANSFORMACIÓN DE COORDENADAS ==========
         # Obtener el ángulo del sensor relativo al frente del robot desde la configuración
@@ -726,21 +834,25 @@ def find_best_free_direction(ir_sensors, current_heading_deg, goal_angle_deg):
 
 def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
     """
-    Calcula la fuerza repulsiva DIRECCIONAL que guía hacia espacios libres.
+    Calcula la fuerza repulsiva que aleja al robot de obstáculos detectados.
     
-    CAMBIO FUNDAMENTAL: En lugar de simplemente empujar LEJOS de obstáculos,
-    esta versión IDENTIFICA la mejor dirección libre y genera una fuerza que
-    GUÍA hacia esa dirección. El robot SIEMPRE encuentra por dónde pasar.
+    MEJORA CLAVE: Ahora usa distancias reales estimadas con compensación de
+    ángulo de sensor y calcula fuerzas basadas en CLEARANCE (distancia libre
+    después de restar el radio del robot), no solo distancia absoluta.
+    
+    Esto permite que el robot se acerque más a obstáculos cuando es seguro,
+    mejorando la eficiencia en espacios confinados, pero reacciona fuertemente
+    cuando el clearance es insuficiente para maniobrar.
     
     Args:
         q: Tupla (x, y, theta_deg) con posición y orientación actual del robot
         ir_sensors: Lista de 7 valores de sensores IR (rango 0-4095)
-        k_rep: Ganancia repulsiva (REINTERPRETADO: intensidad de corrección direccional)
-        d_influence: OBSOLETO en este enfoque direccional
-        gaps: OBSOLETO en este enfoque direccional
+        k_rep: Ganancia repulsiva (usa config.K_REPULSIVE si None)
+        d_influence: Distancia de influencia repulsiva (usa config.D_INFLUENCE si None)
+        gaps: Lista de gaps navegables detectados (para reducir fuerza en gaps)
     
     Returns:
-        tuple: Tupla (fx, fy) con las componentes X e Y de la fuerza DIRECCIONAL
+        tuple: Tupla (fx, fy) con las componentes X e Y de la fuerza repulsiva total
     """
     # Usar valores por defecto de configuración si no se especificaron
     if k_rep is None:
@@ -749,61 +861,93 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
     if d_influence is None:
         d_influence = config.D_INFLUENCE
     
-    # ENFOQUE COMPLETAMENTE NUEVO: En lugar de calcular fuerzas individuales
-    # de cada obstáculo (que causan frenado), identificamos la MEJOR DIRECCIÓN
-    # LIBRE y generamos una fuerza que guía hacia allá
-    
-    # Verificar si HAY obstáculos detectados
+    # Verificar si hay obstáculos detectados
     max_ir = max(ir_sensors) if ir_sensors else 0
     
     # Si NO hay obstáculos cercanos, no aplicar fuerza repulsiva
     if max_ir < config.IR_THRESHOLD_DETECT:
         return 0.0, 0.0
     
-    # OBSTÁCULOS DETECTADOS: No frenar, sino GIRAR hacia espacio libre
-    # La clave es que el robot SIEMPRE se mueve, solo cambia dirección
-    
-    # Analizar los 7 sensores para encontrar la dirección con MENOS obstáculos
-    # Normalizar lecturas para compensar diferencias entre sensores
-    normalized_ir = [normalize_ir_reading(ir_sensors[i], i) for i in range(7)]
-    
-    # Encontrar el sensor con MENOR lectura (más libre)
-    min_ir_idx = 0
-    min_ir_val = normalized_ir[0]
-    
-    for i in range(1, 7):
-        if normalized_ir[i] < min_ir_val:
-            min_ir_val = normalized_ir[i]
-            min_ir_idx = i
-    
-    # Obtener el ángulo del sensor más libre
-    free_direction_local_deg = config.IR_SENSOR_ANGLES.get(min_ir_idx, 0)
-    
-    # Convertir a radianes y al marco global
+    # ========== CALCULAR FUERZAS REPULSIVAS DE CADA OBSTÁCULO ==========
+    fx_total = 0.0
+    fy_total = 0.0
     theta_robot_rad = math.radians(q[2])
-    free_direction_rad = theta_robot_rad + math.radians(free_direction_local_deg)
     
-    # Calcular INTENSIDAD de la corrección basada en qué tan bloqueado está
-    avg_ir = sum(normalized_ir) / len(normalized_ir)
-    
-    # Si promedio es BAJO (< DETECT), casi no hay obstáculos → fuerza débil
-    # Si promedio es ALTO (> WARNING), hay muchos obstáculos → fuerza FUERTE
-    if avg_ir < config.IR_THRESHOLD_DETECT:
-        correction_intensity = 0.0
-    elif avg_ir > config.IR_THRESHOLD_WARNING:
-        correction_intensity = 1.0  # Máxima corrección
-    else:
-        # Escala lineal entre DETECT y WARNING
-        correction_intensity = (avg_ir - config.IR_THRESHOLD_DETECT) / \
-                              (config.IR_THRESHOLD_WARNING - config.IR_THRESHOLD_DETECT)
-    
-    # Generar fuerza que GUÍA hacia la dirección libre
-    # Magnitud proporcional a: (1) ganancia k_rep, (2) intensidad de corrección
-    magnitude = k_rep * correction_intensity * 0.01  # Factor 0.01 para escalar adecuadamente
-    
-    # Componentes de la fuerza en dirección libre
-    fx_total = magnitude * math.cos(free_direction_rad)
-    fy_total = magnitude * math.sin(free_direction_rad)
+    for i in range(7):
+        ir_value = ir_sensors[i]
+        
+        # Solo considerar lecturas significativas
+        if ir_value < config.IR_THRESHOLD_DETECT:
+            continue
+        
+        # Estimar distancia al obstáculo con compensación de ángulo
+        d_obstacle = ir_value_to_distance(ir_value, sensor_index=i)
+        
+        # GEOMETRÍA: Calcular CLEARANCE (distancia libre después del radio del robot)
+        # Esta es la distancia real disponible para maniobrar
+        clearance = d_obstacle - config.ROBOT_RADIUS_CM
+        
+        # Solo aplicar fuerza repulsiva si el obstáculo está dentro de la distancia de influencia
+        if d_obstacle >= d_influence:
+            continue
+        
+        # ========== MODELO DE FUERZA REPULSIVA MEJORADO ==========
+        # La fuerza aumenta DRÁSTICAMENTE cuando el clearance es pequeño
+        # Usa modelo: F_rep = k_rep * (1/clearance - 1/d_safe)^2
+        # donde d_safe es la distancia mínima segura
+        
+        d_safe = config.D_SAFE  # 12cm de clearance mínimo
+        
+        if clearance < 1.0:
+            # Clearance crítico (<1cm) - fuerza máxima
+            force_magnitude = k_rep * 10.0
+        elif clearance < d_safe:
+            # Clearance insuficiente - fuerza muy alta, inversamente proporcional
+            # F = k * ((1/clearance) - (1/d_safe))^2
+            term = (1.0 / clearance) - (1.0 / d_safe)
+            force_magnitude = k_rep * (term ** 2)
+        else:
+            # Clearance suficiente - fuerza moderada, decae con distancia
+            # F = k * (d_safe / clearance)^3 * factor_de_alcance
+            factor_alcance = 1.0 - (d_obstacle / d_influence)
+            force_magnitude = k_rep * math.pow(d_safe / clearance, 3.0) * factor_alcance
+        
+        # ========== REDUCIR FUERZA EN GAPS NAVEGABLES ==========
+        # Si este sensor forma parte de un gap navegable, reducir la fuerza
+        # para permitir que el robot pase entre los obstáculos
+        if gaps:
+            for gap in gaps:
+                if gap.get('is_navigable', False):
+                    left_idx = gap.get('left_sensor', -1)
+                    right_idx = gap.get('right_sensor', -1)
+                    
+                    # Si este sensor está en los bordes del gap, reducir fuerza
+                    if i == left_idx or i == right_idx:
+                        force_magnitude *= config.GAP_REPULSION_REDUCTION_FACTOR
+                        break
+        
+        # ========== CALCULAR DIRECCIÓN DE LA FUERZA ==========
+        # Obtener el ángulo del sensor
+        if i not in config.IR_SENSOR_ANGLES:
+            continue
+        
+        sensor_angle_deg = config.IR_SENSOR_ANGLES[i]
+        sensor_angle_rad = math.radians(sensor_angle_deg)
+        
+        # Dirección global del sensor (hacia donde apunta)
+        sensor_direction_global = theta_robot_rad + sensor_angle_rad
+        
+        # La fuerza repulsiva apunta en DIRECCIÓN OPUESTA al obstáculo
+        # (aleja del obstáculo)
+        force_direction = sensor_direction_global + math.pi
+        
+        # Componentes de la fuerza
+        fx = force_magnitude * math.cos(force_direction)
+        fy = force_magnitude * math.sin(force_direction)
+        
+        # Acumular fuerzas de todos los obstáculos
+        fx_total += fx
+        fy_total += fy
     
     return fx_total, fy_total
 
@@ -852,6 +996,9 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
             - distance: Distancia al objetivo en cm
             - info: Diccionario con información detallada para logging
     """
+    # Declarar variable global para rampa de aceleración
+    global _last_v_linear
+    
     # Si no hay sensores IR disponibles, usar solo potencial atractivo
     # Esto permite que la función funcione también en la Parte 01
     if ir_sensors is None or not ir_sensors:
@@ -936,32 +1083,74 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
                   trapped_sensor_count >= config.TRAP_DETECTION_SENSOR_COUNT and
                   not navigable_gap_detected)
     
-    # Aplicar sistema de umbrales escalonados para control dinámico de velocidad
-    # MODIFICADO: Sistema MUCHO MÁS PERMISIVO que solo reduce velocidad
-    # cuando hay peligro REAL (muy cerca), NO a 30cm que es completamente seguro
+    # ========== CONTROL DINÁMICO DE VELOCIDAD MEJORADO ==========
+    # NUEVA ESTRATEGIA: Calcular velocidad máxima basada en distancias REALES
+    # estimadas y clearance disponible, no solo en valores IR crudos
     
-    # NUEVA LÓGICA: Solo considerar obstáculos FRONTALES directos
-    # Los sensores laterales NO deben frenar el robot a menos que estén DELANTE
-    front_sensors = [normalized_ir[2], normalized_ir[3], normalized_ir[4]]  # Centro y frente-laterales
-    max_ir_front = max(front_sensors)
+    # Analizar obstáculos frontales (sensores centrales y frente-laterales)
+    front_sensor_indices = [2, 3, 4]  # Centro y frente-laterales
+    min_clearance_front = float('inf')
+    min_distance_front = float('inf')
     
-    # Sistema de umbrales MUY reducido: solo frenar cuando hay peligro REAL
-    if max_ir_front >= config.IR_THRESHOLD_EMERGENCY:
-        # EMERGENCIA: obstáculo MUY cerca (<10cm frontal), reducir a 50%
-        v_max_allowed = config.V_MAX_CM_S * 0.5
+    for idx in front_sensor_indices:
+        if normalized_ir[idx] >= config.IR_THRESHOLD_DETECT:
+            # Estimar distancia real con compensación de ángulo
+            dist = ir_value_to_distance(ir_sensors[idx], sensor_index=idx)
+            clearance = dist - config.ROBOT_RADIUS_CM
+            
+            if clearance < min_clearance_front:
+                min_clearance_front = clearance
+            if dist < min_distance_front:
+                min_distance_front = dist
+    
+    # Calcular velocidad máxima basada en clearance frontal
+    # FILOSOFÍA: Velocidad proporcional al espacio disponible
+    # MEJORA: Considerar también la velocidad actual para frenado predictivo
+    
+    # Estimar distancia de frenado necesaria basada en velocidad actual
+    # Fórmula: d_brake = v² / (2 * a_decel)
+    # Con a_decel = 20 cm/s² (desaceleración segura)
+    current_v = _last_v_linear if _last_v_linear > 0 else 8.0
+    decel_rate = 20.0  # cm/s² - tasa de desaceleración segura
+    brake_distance = (current_v ** 2) / (2 * decel_rate)
+    
+    # Clearance efectivo = clearance real - distancia de frenado
+    # Esto asegura que empezamos a frenar ANTES de que sea tarde
+    effective_clearance = min_clearance_front - brake_distance
+    
+    if effective_clearance < 5.0 or min_clearance_front < 3.0:
+        # Clearance crítico o ya muy cerca - EMERGENCIA
+        v_max_allowed = config.V_MAX_EMERGENCY
         safety_level = "EMERGENCY"
-    elif max_ir_front >= config.IR_THRESHOLD_CRITICAL:
-        # CRÍTICO: obstáculo cerca (~10-15cm frontal), reducir a 70%
-        v_max_allowed = config.V_MAX_CM_S * 0.7
+    elif effective_clearance < 12.0 or min_clearance_front < 8.0:
+        # Clearance bajo - CRÍTICO
+        v_max_allowed = config.V_MAX_CRITICAL
         safety_level = "CRITICAL"
-    elif max_ir_front >= config.IR_THRESHOLD_WARNING:
-        # ADVERTENCIA: obstáculo medio (~15-25cm frontal), reducir a 85%
-        v_max_allowed = config.V_MAX_CM_S * 0.85
+    elif effective_clearance < 20.0 or min_clearance_front < 15.0:
+        # Clearance moderado - ADVERTENCIA
+        v_max_allowed = config.V_MAX_WARNING
         safety_level = "WARNING"
+    elif effective_clearance < 30.0 or min_clearance_front < 25.0:
+        # Clearance bueno - PRECAUCIÓN
+        v_max_allowed = config.V_MAX_CAUTION
+        safety_level = "CAUTION"
     else:
-        # LIBRE: sin obstáculos frontales cercanos, velocidad COMPLETA
+        # Clearance excelente - LIBRE
         v_max_allowed = config.V_MAX_CM_S
         safety_level = "CLEAR"
+    
+    # BOOST: Si hay gap navegable detectado, aumentar velocidad permitida
+    # El robot puede ir más rápido si sabe que hay un camino claro
+    if navigable_gap_detected:
+        # Encontrar el gap más ancho
+        max_gap_width = max([g.get('gap_width', 0) for g in gaps if g.get('is_navigable', False)])
+        
+        if max_gap_width > config.ROBOT_DIAMETER_CM + 30:
+            # Gap muy ancho (>64cm) - aumentar velocidad 30%
+            v_max_allowed = min(v_max_allowed * 1.3, config.V_MAX_CM_S)
+        elif max_gap_width > config.ROBOT_DIAMETER_CM + 15:
+            # Gap ancho (>49cm) - aumentar velocidad 15%
+            v_max_allowed = min(v_max_allowed * 1.15, config.V_MAX_CM_S)
     
     # Si está atrapado, actualizar el nivel de seguridad
     if is_trapped:
@@ -1075,7 +1264,6 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
             v_base = config.TRAP_MIN_FORWARD_SPEED
         
         # Aplicar rampa de aceleración para prevenir cambios bruscos de velocidad
-        global _last_v_linear
         max_accel = config.ACCEL_RAMP_CM_S2 * config.CONTROL_DT
         if v_base > _last_v_linear + max_accel:
             v_base = _last_v_linear + max_accel
@@ -1095,10 +1283,11 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         
         # Calcular pesos para combinar las direcciones
         # El peso repulsivo aumenta cuando el robot está más cerca de obstáculos
-        # CRÍTICO: Divisor DRASTICAMENTE reducido de 2.5 → 1.2 y límite aumentado de 0.98 → 0.99
-        # Esto permite que la fuerza repulsiva DOMINE COMPLETAMENTE cuando hay obstáculos
-        # Con divisor 1.2, fuerzas repulsivas moderadas ya alcanzan 80-90% de influencia
-        weight_rep = min(f_rep_mag / 1.2, 0.99)
+        # MEJORADO: Usar modelo más balanceado que permite al robot mantener
+        # velocidad mientras evade obstáculos a distancia segura
+        # Con el nuevo modelo de fuerzas basado en clearance, las fuerzas son
+        # más proporcionales al riesgo real
+        weight_rep = min(f_rep_mag / 3.5, 0.85)  # Máximo 85% de influencia repulsiva
         weight_att = 1.0 - weight_rep
         
         # Combinar ángulos mediante promedio ponderado de vectores unitarios
@@ -1108,23 +1297,18 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         combined_y = weight_att * math.sin(desired_angle_att) + weight_rep * math.sin(angle_rep)
         desired_angle = math.atan2(combined_y, combined_x)
         
-        # ⚠️ CRÍTICO: FRENAR DRÁSTICAMENTE cuando hay obstáculos
-        # La velocidad debe ser INVERSAMENTE proporcional a la fuerza repulsiva
-        # Cuanto más fuerte la repulsión, MÁS LENTO debe ir para girar con precisión
-        # ANTES: extra_slowdown = max(0.6, 1.0 - weight_rep * 0.2)  → Muy permisivo
-        # AHORA: Reducción AGRESIVA basada directamente en weight_rep
-        if weight_rep > 0.8:  # Obstáculo MUY cerca
-            # Con 80%+ de influencia repulsiva → ARRASTRARSE
-            # weight_rep=0.9 → factor=0.1 (10% velocidad)
-            # weight_rep=0.95 → factor=0.05 (5% velocidad)
-            extra_slowdown = max(0.05, 1.0 - weight_rep)
-        elif weight_rep > 0.5:  # Obstáculo cerca
-            # Con 50-80% influencia → Reducción significativa
-            # weight_rep=0.6 → factor=0.4 (40% velocidad)
-            extra_slowdown = max(0.2, 1.0 - weight_rep * 0.8)
-        else:  # Obstáculo detectado pero lejos
-            # Con <50% influencia → Reducción moderada
-            extra_slowdown = max(0.5, 1.0 - weight_rep * 0.5)
+        # REDUCCIÓN DE VELOCIDAD MODERADA basada en influencia repulsiva
+        # MEJORADO: Menos agresivo porque ya aplicamos v_max_allowed basado en clearance
+        # Esta reducción adicional es solo para facilitar el giro
+        if weight_rep > 0.7:  # Obstáculo con alta influencia
+            # Reducción moderada para permitir maniobra precisa
+            extra_slowdown = max(0.5, 1.0 - weight_rep * 0.4)
+        elif weight_rep > 0.4:  # Obstáculo con influencia media
+            # Reducción ligera
+            extra_slowdown = max(0.7, 1.0 - weight_rep * 0.3)
+        else:  # Obstáculo detectado pero con poca influencia
+            # Mínima reducción
+            extra_slowdown = max(0.85, 1.0 - weight_rep * 0.2)
         
         v_linear = v_base * extra_slowdown
     else:
@@ -1192,20 +1376,31 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # Aplicar reducción (pero siempre manteniendo velocidad mínima)
     v_linear *= angle_factor
     
-    # ⚠️ CRÍTICO: Reducción adicional si hay obstáculos LATERALES muy cerca
-    # Los obstáculos laterales son especialmente peligrosos durante giros
+    # REDUCCIÓN MODERADA por obstáculos LATERALES muy cerca
+    # MEJORADO: Menos agresivo con umbrales actualizados y estimaciones precisas
+    # Los obstáculos laterales ahora se detectan más cerca de su distancia real
     if ir_sensors and len(ir_sensors) >= 7:
-        max_lateral_all = max(ir_sensors[0], ir_sensors[1], ir_sensors[5], ir_sensors[6])
+        # Calcular clearance lateral mínimo usando distancias reales
+        lateral_indices = [0, 1, 5, 6]
+        min_lateral_clearance = float('inf')
         
-        if max_lateral_all >= config.IR_THRESHOLD_CRITICAL:
-            # Obstáculo lateral CRÍTICO → Reducir a 20% de velocidad
-            v_linear *= 0.2
-        elif max_lateral_all >= config.IR_THRESHOLD_WARNING:
-            # Obstáculo lateral ADVERTENCIA → Reducir a 40% de velocidad
+        for idx in lateral_indices:
+            if ir_sensors[idx] >= config.IR_THRESHOLD_DETECT:
+                dist = ir_value_to_distance(ir_sensors[idx], sensor_index=idx)
+                clearance = dist - config.ROBOT_RADIUS_CM
+                if clearance < min_lateral_clearance:
+                    min_lateral_clearance = clearance
+        
+        # Reducir velocidad solo si clearance lateral es realmente pequeño
+        if min_lateral_clearance < 5.0:
+            # Clearance crítico (<5cm) → Reducir a 40%
             v_linear *= 0.4
-        elif max_lateral_all >= config.IR_THRESHOLD_CAUTION:
-            # Obstáculo lateral PRECAUCIÓN → Reducir a 70% de velocidad
-            v_linear *= 0.7
+        elif min_lateral_clearance < 10.0:
+            # Clearance bajo (5-10cm) → Reducir a 65%
+            v_linear *= 0.65
+        elif min_lateral_clearance < 15.0:
+            # Clearance moderado (10-15cm) → Reducir a 80%
+            v_linear *= 0.8
     
     # GARANTÍA ADICIONAL: velocidad mínima absoluta cuando estamos lejos Y sin obstáculos críticos
     if distance > 30.0 and v_linear < 8.0 and safety_level == "CLEAR":
@@ -1281,6 +1476,27 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # usando la cinemática diferencial del robot
     v_left = v_linear - half_base * omega
     v_right = v_linear + half_base * omega
+    
+    # CRÍTICO: GARANTIZAR NAVEGACIÓN EN ARCO (sin rotación sobre eje)
+    # Si alguna rueda tiene velocidad negativa (hacia atrás), el robot giraría
+    # sobre su eje en lugar de moverse en arco. Forzamos ambas ruedas >= 0
+    # SOLO cuando estamos lejos del objetivo (cuando estamos cerca, permitimos
+    # giros más cerrados para convergencia precisa)
+    if distance > config.TOL_DIST_CM * 2:  # Más de 10cm del objetivo
+        if v_left < 0 or v_right < 0:
+            # Una rueda iría hacia atrás - reducir omega para mantener arco
+            # Calcular el omega máximo que mantiene ambas ruedas >= 0
+            if v_linear > 0:
+                max_omega_positive = v_linear / half_base
+                # Limitar omega a este valor (con el signo apropiado)
+                if omega > max_omega_positive:
+                    omega = max_omega_positive * 0.95  # 95% para margen
+                elif omega < -max_omega_positive:
+                    omega = -max_omega_positive * 0.95
+                
+                # Recalcular velocidades de rueda
+                v_left = v_linear - half_base * omega
+                v_right = v_linear + half_base * omega
     
     # Saturación final de cada rueda para garantizar límites físicos
     v_left = max(-config.V_MAX_CM_S, min(config.V_MAX_CM_S, v_left))

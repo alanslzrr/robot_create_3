@@ -3,45 +3,89 @@
 """
 Script principal de navegación con campos de potencial atractivo - Parte 01
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este script implementamos la primera parte de la práctica evaluada número 4,
-enfocada en la navegación autónoma utilizando únicamente campos de potencial
-atractivo. Nuestro objetivo principal era desarrollar un sistema que permitiera
-al robot navegar desde una posición inicial hasta una posición final usando
-diferentes funciones de potencial, cada una con características específicas
-de comportamiento.
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
 
-Los objetivos específicos que buscamos alcanzar incluyen:
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Desarrollar un sistema de navegación autónoma para el robot iRobot Create 3 que
+utilice campos de potencial atractivo para guiar al robot desde una posición
+inicial hasta un objetivo, implementando cuatro funciones de potencial diferentes
+(lineal, cuadrática, cónica y exponencial) para permitir análisis comparativo
+de sus características de comportamiento.
+
+Este script constituye la primera parte de la práctica evaluada número 4,
+enfocada en establecer la base del sistema de navegación antes de incorporar
+evasión de obstáculos en la Parte 02.
+
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
 
 1. Implementar un sistema de navegación que calcule velocidades de rueda basadas
-   en campos de potencial atractivo hacia el objetivo
-2. Proporcionar cuatro funciones de potencial diferentes (lineal, cuadrática,
-   cónica y exponencial) para permitir análisis comparativo
-3. Integrar sistemas de seguridad que protejan al robot mediante detección de
-   obstáculos con sensores IR y manejo de colisiones físicas
-4. Registrar todos los datos de navegación en archivos CSV para análisis
-   posterior y comparación entre diferentes funciones de potencial
-5. Implementar un sistema robusto de control que funcione a 20 Hz con manejo
-   adecuado de errores y interrupciones
+   en campos de potencial atractivo hacia el objetivo, utilizando la cinemática
+   diferencial del robot
 
-CONFIGURACIÓN:
+2. Proporcionar cuatro funciones de potencial diferentes (lineal, cuadrática,
+   cónica y exponencial) para permitir análisis comparativo de sus características
+   de aceleración, convergencia y comportamiento en diferentes distancias
+
+3. Integrar sistemas de seguridad que protejan al robot mediante detección de
+   obstáculos con sensores IR y manejo de colisiones físicas mediante bumpers
+
+4. Implementar un sistema de control de velocidad que incluya rampa de aceleración
+   progresiva, desaceleración suave cerca del objetivo y saturación dentro de
+   límites seguros del hardware
+
+5. Registrar todos los datos de navegación en archivos CSV para análisis posterior
+   y comparación entre diferentes funciones de potencial, incluyendo posición,
+   velocidades, errores y tipo de potencial utilizado
+
+6. Implementar un sistema robusto de control que funcione a 20 Hz con manejo
+   adecuado de errores e interrupciones, permitiendo detención segura con Ctrl+C
+
+7. Configurar un sistema de transformación de coordenadas que permita trabajar
+   en un sistema mundial especificado en points.json, independientemente de la
+   orientación inicial del robot
+
+===============================================================================
+CONFIGURACIÓN
+===============================================================================
 
 El script está configurado para trabajar con el módulo config.py que contiene
 todos los parámetros del sistema. Los principales parámetros configurables
 incluyen:
 
-- Velocidades máximas y mínimas del robot
-- Ganancias de control específicas para cada tipo de potencial
-- Umbrales de detección de obstáculos mediante sensores IR
-- Período de control (50 ms para 20 Hz)
-- Tolerancia de llegada a la meta (3 cm)
+- Velocidades máximas y mínimas del robot (48 cm/s máximo por defecto)
+- Ganancias de control específicas para cada tipo de potencial (ajustadas
+  experimentalmente para lograr comportamientos similares)
+- Umbrales de detección de obstáculos mediante sensores IR (sistema escalonado
+  con niveles de emergencia, crítico, advertencia y precaución)
+- Período de control (50 ms para 20 Hz de frecuencia de muestreo)
+- Tolerancia de llegada a la meta (5 cm por defecto, aumentada a 10 cm en
+  ejecución para compensar drift de odometría)
 
 El script carga los puntos de navegación desde un archivo JSON ubicado en
 data/points.json, que debe contener las coordenadas del punto inicial (q_i)
@@ -49,7 +93,8 @@ con posición y orientación, y el punto final (q_f) con solo posición.
 
 El sistema utiliza argumentos de línea de comandos para permitir flexibilidad
 en la ejecución, permitiendo seleccionar el tipo de potencial, el nombre del
-robot Bluetooth, y activar modo debug para monitoreo detallado.
+robot Bluetooth (nuestro robot del grupo 1 por defecto), y activar modo debug
+para monitoreo detallado durante el desarrollo.
 """
 
 import argparse
@@ -233,10 +278,36 @@ class AttractiveFieldNavigator:
         self.q_goal = q_goal
         self.potential_type = potential_type
         self.debug = debug
-        self.logger = SensorLogger(robot)
         self.vel_logger = VelocityLogger(potential_type)
         self.running = False
         self.current_led_color = None  # Para rastrear el color actual del LED
+        
+        # TRANSFORMACIÓN DE COORDENADAS: El robot internamente usa odometría desde (0,0)
+        # después de reset_navigation(), pero nosotros queremos trabajar en un 
+        # sistema de coordenadas donde la posición inicial q_i está en (x_i, y_i)
+        # especificada en points.json.
+        # 
+        # IMPORTANTE: No solo necesitamos un offset, sino una TRANSFORMACIÓN completa
+        # porque el robot puede empezar con cualquier orientación. Guardamos los
+        # parámetros de transformación para aplicarlos a todas las lecturas.
+        self.q_initial = q_initial  # Guardar para transformación
+        self.position_offset_x = q_initial[0]
+        self.position_offset_y = q_initial[1]
+        self.initial_heading = q_initial[2]
+        
+        # Variables para la transformación de coordenadas (se inicializarán después del reset)
+        self.odometry_to_world_rotation = 0.0  # Rotación del sistema de odometría al mundo
+        self.reset_heading = 0.0  # Heading del robot al hacer reset
+        
+        # Crear el SensorLogger CON los offsets para que muestre posiciones corregidas
+        self.logger = SensorLogger(robot, 
+                                   position_offset_x=self.position_offset_x,
+                                   position_offset_y=self.position_offset_y,
+                                   heading_offset=0)  # El heading_offset se calcula después del reset
+        
+        print(f"[INFO] Sistema de coordenadas configurado:")
+        print(f"       Posicion inicial deseada: ({self.position_offset_x:.1f}, {self.position_offset_y:.1f}) cm")
+        print(f"       Heading inicial deseado: {self.initial_heading:.1f}°")
         
     async def navigate(self):
         """
@@ -265,31 +336,38 @@ class AttractiveFieldNavigator:
                   o se abortó la misión
         """
         # Resetear la odometría del robot al inicio de la navegación
+        # IMPORTANTE: reset_navigation() establece la posición interna del robot a (0, 0, heading_actual)
         await self.robot.reset_navigation()
         
-        # ESTRATEGIA: En lugar de modificar el heading del robot (que no es posible),
-        # calculamos un offset de orientación que se aplicará en cada iteración.
-        # Esto permite simular cualquier orientación inicial configurada en points.json
-        
-        # Obtener el heading real inicial del robot después del reset (debería ser ~0)
+        # Obtener el heading real inicial del robot después del reset
         pos_initial = await self.robot.get_position()
-        real_heading_at_start = pos_initial.heading
-        
-        # Calcular el offset entre el heading deseado (de points.json) y el real
+        self.reset_heading = pos_initial.heading  # Guardar para transformaciones
         desired_heading = self.q_initial[2]
-        self.heading_offset = desired_heading - real_heading_at_start
         
-        print(f"[INFO] Orientacion deseada: {desired_heading:.1f}°")
-        print(f"[INFO] Orientacion real inicial: {real_heading_at_start:.1f}°")
-        print(f"[INFO] Offset aplicado: {self.heading_offset:.1f}°")
+        # Calcular el ángulo de rotación entre el sistema de odometría y el mundo
+        # Este ángulo se usa para rotar las coordenadas de odometría al sistema mundial
+        self.odometry_to_world_rotation = math.radians(desired_heading - self.reset_heading)
+        
+        # El offset angular para mostrar en los logs
+        self.heading_offset = desired_heading - self.reset_heading
+        
+        # Actualizar el heading_offset en el logger para que muestre ángulos corregidos
+        self.logger.heading_offset = self.heading_offset
+        
+        print(f"[INFO] Configuracion de odometria:")
+        print(f"       Posicion inicial deseada (points.json): ({self.q_initial[0]:.1f}, {self.q_initial[1]:.1f}, {desired_heading:.1f}°)")
+        print(f"       Heading real del robot al inicio: {self.reset_heading:.1f}°")
+        print(f"       Rotacion del sistema de coordenadas: {math.degrees(self.odometry_to_world_rotation):.1f}°")
+        print(f"       Posicion final objetivo: ({self.q_goal[0]:.1f}, {self.q_goal[1]:.1f})")
         print(f"[INFO] Navegacion iniciada con potencial: {self.potential_type}\n")
         
         # Resetear la rampa de aceleración para empezar desde velocidad cero
         reset_velocity_ramp()
         
-        # LED AZUL: Navegando hacia el objetivo
-        await self.robot.set_lights_rgb(0, 0, 255)
-        self.current_led_color = 'blue'
+        # LED VERDE: Listo para iniciar (estado inicial)
+        await self.robot.set_lights_rgb(0, 255, 0)
+        self.current_led_color = 'green'
+        await self.robot.wait(1.0)  # Mantener verde 1 segundo antes de empezar
         
         # Iniciar los sistemas de logging en segundo plano
         self.logger.start()
@@ -314,14 +392,43 @@ class AttractiveFieldNavigator:
                     await self.robot.wait(0.05)
                     continue
                 
-                # IMPORTANTE: Aplicar el offset de orientación para simular el theta inicial
-                # Esto permite que el robot "piense" que tiene una orientación diferente
-                adjusted_heading = pos.heading + self.heading_offset
-                q = (pos.x, pos.y, adjusted_heading)
+                # TRANSFORMACIÓN DE COORDENADAS desde odometría a sistema mundial
+                # La odometría del robot está en su propio sistema de referencia que empieza
+                # en (0, 0) después del reset. Necesitamos transformar estas coordenadas
+                # al sistema mundial especificado en points.json.
                 
-                # CALCULAR DISTANCIA AL OBJETIVO PRIMERO
-                dx = self.q_goal[0] - pos.x
-                dy = self.q_goal[1] - pos.y
+                # Paso 1: Obtener posición en el sistema de odometría
+                odom_x = pos.x
+                odom_y = pos.y
+                
+                # Paso 2: Rotar las coordenadas según la orientación inicial del robot
+                # Si el robot empezó apuntando hacia -134.7°, su eje X interno apunta en esa dirección
+                # Necesitamos rotar el vector (odom_x, odom_y) para llevarlo al sistema mundial
+                cos_rot = math.cos(self.odometry_to_world_rotation)
+                sin_rot = math.sin(self.odometry_to_world_rotation)
+                
+                rotated_x = odom_x * cos_rot - odom_y * sin_rot
+                rotated_y = odom_x * sin_rot + odom_y * cos_rot
+                
+                # Paso 3: Trasladar al punto inicial deseado
+                actual_x = rotated_x + self.position_offset_x
+                actual_y = rotated_y + self.position_offset_y
+                
+                # APLICAR OFFSET DE HEADING para que esté en el mismo sistema
+                actual_heading = pos.heading + self.heading_offset
+                
+                # Normalizar el heading al rango [-180, 180]
+                while actual_heading > 180:
+                    actual_heading -= 360
+                while actual_heading <= -180:
+                    actual_heading += 360
+                
+                # Posición completa en nuestro sistema de coordenadas mundial
+                q = (actual_x, actual_y, actual_heading)
+                
+                # CALCULAR DISTANCIA AL OBJETIVO usando la posición corregida
+                dx = self.q_goal[0] - actual_x
+                dy = self.q_goal[1] - actual_y
                 distance = math.hypot(dx, dy)
                 
                 # DETENCIÓN INMEDIATA si estamos en el objetivo
@@ -330,7 +437,8 @@ class AttractiveFieldNavigator:
                 TOLERANCE_CM = 10.0  # 10 cm en vez de 5 cm para convergencia más fácil
                 if distance < TOLERANCE_CM:
                     print(f"\n[SUCCESS] Meta alcanzada! Distancia: {distance:.2f} cm")
-                    print(f"           Posicion final: x={pos.x:.1f}, y={pos.y:.1f}, theta={pos.heading:.1f} deg")
+                    print(f"           Posicion final: x={actual_x:.1f}, y={actual_y:.1f}, theta={actual_heading:.1f} deg")
+                    print(f"           Objetivo: x={self.q_goal[0]:.1f}, y={self.q_goal[1]:.1f}")
                     await self.robot.set_wheel_speeds(0, 0)
                     await self.robot.set_lights_rgb(0, 255, 0)  # LED VERDE
                     await self.robot.play_note(80, 0.2)
@@ -343,6 +451,11 @@ class AttractiveFieldNavigator:
                 ir_prox = await self.robot.get_ir_proximity()
                 ir_sensors = ir_prox.sensors if hasattr(ir_prox, 'sensors') else []
                 bumpers = await self.robot.get_bumpers()
+                
+                # DEBUG: Print values being used for navigation
+                if iteration <= 3:
+                    print(f"\n[DEBUG iter {iteration}] q={q}, q_goal={self.q_goal}")
+                    print(f"[DEBUG iter {iteration}] dx={dx:.2f}, dy={dy:.2f}, distance={distance:.2f}")
                 
                 # Calcular velocidades usando la función de potencial atractivo
                 # seleccionada. Esta función retorna las velocidades de rueda,
@@ -385,23 +498,19 @@ class AttractiveFieldNavigator:
                 # Saturar las velocidades dentro de los límites seguros del robot
                 v_left, v_right = saturate_wheel_speeds(v_left, v_right)
                 
-                # ========== CONTROL DE LEDs SEGÚN VELOCIDAD ==========
-                # Calcular la velocidad lineal promedio para determinar el estado
+                # ========== CONTROL DE LEDs SEGÚN DISTANCIA Y VELOCIDAD ==========
+                # Sistema de LEDs más claro y simple:
+                # - VERDE: Inicio (ya establecido al principio)
+                # - AZUL: Navegando normalmente
+                # - VERDE: Meta alcanzada (establecido arriba al llegar)
+                
+                # Calcular la velocidad lineal promedio
                 v_avg = (abs(v_left) + abs(v_right)) / 2.0
                 
-                # Cambiar color del LED según la velocidad:
-                # - AZUL: Velocidad alta (navegando normalmente) > 20 cm/s
-                # - NARANJA: Velocidad reducida (acercándose o precaución) <= 20 cm/s
-                if v_avg > 20.0:
-                    # LED AZUL: Navegando a velocidad normal
-                    if self.current_led_color != 'blue':
-                        await self.robot.set_lights_rgb(0, 0, 255)
-                        self.current_led_color = 'blue'
-                else:
-                    # LED NARANJA: Velocidad reducida (acercándose al objetivo)
-                    if self.current_led_color != 'orange':
-                        await self.robot.set_lights_rgb(255, 165, 0)
-                        self.current_led_color = 'orange'
+                # Durante navegación: siempre AZUL
+                if self.current_led_color != 'blue':
+                    await self.robot.set_lights_rgb(0, 0, 255)
+                    self.current_led_color = 'blue'
                 
                 # Mostrar información de debug si está habilitado
                 if self.debug and iteration % 10 == 0:
@@ -486,7 +595,8 @@ Ejemplos de uso:
     # Mostrar información de la misión antes de iniciar
     print_mission_info(q_i, q_f, args.robot, args.potential)
     
-    # Establecer conexión Bluetooth con el robot
+    # Establecemos la conexión Bluetooth con nuestro robot del grupo 1
+    # El nombre por defecto es "C3_UIEC_Grupo1" según config.py
     print(f"[CONNECTING] Conectando a '{args.robot}'...")
     try:
         robot = Create3(Bluetooth(args.robot))

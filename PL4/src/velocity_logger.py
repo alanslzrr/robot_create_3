@@ -1,30 +1,54 @@
 """
 Sistema de registro de datos para análisis de funciones de potencial atractivo
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este módulo implementamos un sistema de registro de datos que captura todas
-las variables relevantes durante la navegación en archivos CSV. Nuestro objetivo
-principal era crear una herramienta que permitiera análisis posterior y comparación
-cuantitativa entre diferentes funciones de potencial, facilitando la evaluación
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
+
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Crear un sistema de registro de datos que capture todas las variables relevantes
+durante la navegación en archivos CSV, permitiendo análisis posterior y comparación
+cuantitativa entre diferentes funciones de potencial y facilitando la evaluación
 objetiva del desempeño de cada función.
 
-Los objetivos específicos que buscamos alcanzar incluyen:
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
 
 1. Registrar todas las variables relevantes de navegación en formato CSV estándar
    que pueda ser procesado fácilmente por herramientas de análisis
+
 2. Incluir información suficiente para calcular métricas de desempeño como tiempo
    total, precisión, eficiencia de trayectoria y características de velocidad
+
 3. Generar archivos con nombres únicos que incluyan timestamp y tipo de potencial
    para facilitar la organización y identificación de ejecuciones
+
 4. Proporcionar una interfaz simple que pueda iniciarse al comienzo de la navegación
    y detenerse al finalizar, registrando datos en cada iteración del bucle de control
+
 5. Soportar tanto navegación con potencial atractivo puro como combinado con repulsivo,
    incluyendo información adicional cuando está disponible
 

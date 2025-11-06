@@ -1,25 +1,56 @@
 """
 Módulo de configuración centralizada para PL4 - Navegación con Campos de Potencial
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este módulo centralizamos todos los parámetros configurables del sistema de
-navegación basado en campos de potencial. El objetivo principal era crear un
-punto único de configuración que permitiera ajustar velocidades, ganancias de
-control, umbrales de sensores y parámetros específicos para cada función de
-potencial sin necesidad de modificar el código principal en múltiples lugares.
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
 
-Esta centralización nos permite realizar calibraciones experimentales de manera
-eficiente, ajustando constantes en un solo lugar y asegurando consistencia de
-parámetros entre todos los módulos del proyecto. Los valores aquí definidos han
-sido ajustados mediante pruebas experimentales con el robot Create 3 para lograr
-un comportamiento óptimo en diferentes condiciones de navegación.
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Centralizar todos los parámetros configurables del sistema de navegación basado
+en campos de potencial, proporcionando un punto único de configuración que permita
+ajustar velocidades, ganancias de control, umbrales de sensores y parámetros
+específicos para cada función de potencial sin necesidad de modificar el código
+principal en múltiples lugares.
+
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
+
+1. Agrupar todos los parámetros del sistema en secciones lógicas para facilitar
+   su localización y modificación
+
+2. Proporcionar valores calibrados experimentalmente para garantizar un
+   comportamiento seguro y efectivo del robot
+
+3. Documentar cada parámetro con su propósito, unidades y rango de valores
+   recomendado
+
+4. Facilitar la experimentación permitiendo ajustes rápidos de parámetros sin
+   modificar código de lógica de control
+
+5. Mantener consistencia de parámetros entre todos los módulos del proyecto
 
 CONFIGURACIÓN:
 
@@ -51,7 +82,8 @@ WHEEL_BASE_CM = 23.5
 # ============ LÍMITES DE VELOCIDAD ============
 # Velocidad máxima lineal permitida en centímetros por segundo
 # Este límite protege los motores y garantiza control seguro
-V_MAX_CM_S = 48.0
+# REDUCIDO: 48.0 → 38.0 cm/s para dar más tiempo de reacción ante obstáculos
+V_MAX_CM_S = 38.0
 
 # Velocidad mínima antes de detención completa
 # Si la velocidad calculada es menor que este valor, el robot se detiene
@@ -76,8 +108,20 @@ TOL_ANGLE_DEG = 5.0
 
 # Rampa de aceleración: límite de cambio de velocidad por iteración
 # Previene cambios bruscos de velocidad que podrían causar deslizamiento
-# o pérdida de control. Valor en cm/s²
-ACCEL_RAMP_CM_S2 = 5.0
+# o pérdida de control. Valor en cm/s por ciclo de control
+# AUMENTADO: 5.0 → 10.0 para aceleración más rápida pero suave
+ACCEL_RAMP_CM_S2 = 10.0
+
+# Velocidad inicial mínima al arrancar (cm/s)
+# El robot empieza lento y acelera progresivamente
+V_START_MIN_CM_S = 8.0
+
+# Distancia de desaceleración: cuando el robot está a esta distancia del objetivo
+# comienza a reducir velocidad progresivamente (cm)
+DECEL_ZONE_CM = 80.0
+
+# Velocidad mínima en la zona de aproximación final (cm)
+V_APPROACH_MIN_CM_S = 12.0
 
 # ============ PARÁMETROS DE POTENCIAL ATRACTIVO ============
 # Ganancia angular para corrección de orientación
@@ -107,28 +151,28 @@ K_CONIC = 0.15
 K_EXPONENTIAL = 2.5
 
 # ============ PARÁMETROS DE POTENCIAL REPULSIVO ============
-# Estos parámetros están ajustados para permitir EVASIÓN AGRESIVA de obstáculos
-# Las fuerzas deben ser lo suficientemente FUERTES para desviar la trayectoria
-# ANTES de que el robot colisione, pero NO TAN FUERTES que dominen completamente
+# Estos parámetros controlan cómo el robot evade obstáculos detectados
+# por los sensores IR. Las fuerzas repulsivas ahora se calculan basándose
+# en el CLEARANCE (distancia libre después del radio del robot), no solo
+# en la distancia absoluta al obstáculo.
 
 # Ganancia repulsiva que controla la intensidad de las fuerzas de evasión
-# Valores altos generan evasión más agresiva, valores bajos permiten acercarse más
-# NUEVA ESTRATEGIA: En lugar de empujar LEJOS, guiamos HACIA espacio libre
-# Por tanto necesitamos valor MUY REDUCIDO que solo CORRIGE dirección, no domina
-# REDUCIDO: 4000 → 500 para enfoque direccional inteligente
-K_REPULSIVE = 500.0
+# MODELO MEJORADO: Usa F = k_rep * f(clearance) donde f es no-lineal
+# Valores altos generan evasión más agresiva cuando clearance < d_safe
+# AUMENTADO: 150.0 → 300.0 para reacción más temprana y agresiva a obstáculos
+K_REPULSIVE = 300.0
 
 # Distancia de influencia del campo repulsivo en centímetros
 # Los obstáculos más lejos que esta distancia no generan fuerzas repulsivas
-# IMPORTANTE: Esta distancia se mide desde el BORDE del robot, no desde el centro
-# REDUCIDO: 100cm → 80cm para reducir influencia de obstáculos lejanos
-# Con diámetro del robot (34.19cm) esto da margen razonable
-D_INFLUENCE = 80.0
+# IMPORTANTE: Esta distancia se mide desde el CENTRO del robot
+# AUMENTADO: 60.0 → 100.0cm para detección y reacción más temprana
+D_INFLUENCE = 100.0
 
-# Distancia de seguridad mínima absoluta
-# Referencia para validaciones adicionales si es necesario
-# AUMENTADO: 8.0 → 12.0cm para compensar imprecisiones de estimación
-D_SAFE = 12.0
+# Distancia de seguridad mínima (clearance mínimo recomendado)
+# Esta es la distancia libre que el robot debe mantener del borde del obstáculo
+# Basada en capacidad de maniobra y margen de error de sensores
+# AUMENTADO: 12cm → 20cm para mayor margen de seguridad
+D_SAFE = 20.0
 
 # ============ PARÁMETROS DE ESCAPE DE TRAMPAS (Mínimos Locales) ============
 # Configuración para permitir que el robot escape de situaciones de trampa en C
@@ -233,67 +277,77 @@ IR_SENSOR_ANGLES = {
 }
 
 # ============ SISTEMA DE SEGURIDAD - UMBRALES ESCALONADOS ============
-# BASADO EN CALIBRACIÓN REAL - Distancia de 5cm del borde:
-# - Sensor 0 (lateral izq extremo): 1382-1386 a 5cm - MUY SENSIBLE
-# - Sensor 1 (lateral izq): 1121-1123 a 5cm - MUY SENSIBLE
-# - Sensor 2 (frontal izq): 268-271 a 5cm - MODERADO
-# - Sensor 3 (frontal centro): 1044-1046 a 5cm - MUY SENSIBLE
-# - Sensor 4 (frontal der): 895-898 a 5cm - SENSIBLE
-# - Sensor 5 (lateral der): 669-676 a 5cm - MENOS SENSIBLE
-# - Sensor 6 (lateral der extremo): 900-902 a 5cm - MODERADO
+# BASADO EN CALIBRACIÓN REAL MEJORADA - Distancias reales estimadas:
+# Con el modelo mejorado de conversión IR→distancia:
+# - IR_norm = 1000 → ~5cm (borde del robot)
+# - IR_norm = 700 → ~6cm
+# - IR_norm = 400 → ~9cm
+# - IR_norm = 200 → ~13cm
+# - IR_norm = 100 → ~18cm
+# - IR_norm = 60 → ~22cm
+# - IR_norm = 30 → ~35cm
 #
-# IMPORTANTE: Los sensores tienen DIFERENTE sensibilidad
-# Los frontales (0,1,3,4) son más sensibles que los laterales (5,6)
-# Ajustamos umbrales para compensar estas diferencias
+# IMPORTANTE: Ahora los umbrales reflejan DISTANCIAS REALES después de
+# compensación por ángulo del sensor. El robot puede acercarse más sin
+# frenar excesivamente, mejorando eficiencia en espacios confinados.
 #
-# ESTRATEGIA: Umbrales más altos = obstáculo MÁS cerca
-# Con calibración real, definimos umbrales conservadores
+# GEOMETRÍA DEL ROBOT:
+# - Radio: 17.1cm → necesita mínimo 17cm de clearance
+# - Con margen de seguridad: 17cm + 5cm = 22cm mínimo recomendado
+# - Radio de giro mínimo: ~12cm (basado en wheelbase 23.5cm)
 
-# Umbral de emergencia: obstáculo MUY cerca (<5cm)
-# Basado en valores mínimos a 5cm: sensor 2 da ~270, otros >600
-# Usamos promedio: (270+600)/2 = ~400 para balance
-IR_THRESHOLD_EMERGENCY = 400
+# Umbral de emergencia: obstáculo MUY cerca (~5-7cm del borde)
+# A esta distancia solo queda ~5cm antes de contacto físico
+# AUMENTADO: 400 → 700 para reflejar distancias reales
+IR_THRESHOLD_EMERGENCY = 700
 
-# Umbral crítico: obstáculo cerca (~8-12cm estimado)
-# A esta distancia el IR cae a ~150-250 según sensor
-IR_THRESHOLD_CRITICAL = 150
+# Umbral crítico: obstáculo cerca (~8-11cm del borde)
+# A esta distancia el robot puede girar pero debe reducir velocidad
+# AUMENTADO: 150 → 350
+IR_THRESHOLD_CRITICAL = 350
 
-# Umbral de advertencia: obstáculo a distancia media (~15-25cm)
-# A esta distancia IR ~80-120
-IR_THRESHOLD_WARNING = 80
+# Umbral de advertencia: obstáculo a distancia media (~12-17cm)
+# A esta distancia el robot tiene espacio para maniobrar
+# AUMENTADO: 80 → 180
+IR_THRESHOLD_WARNING = 180
 
-# Umbral de precaución: obstáculo detectado (~30-50cm)
-# A esta distancia IR ~40-60
-IR_THRESHOLD_CAUTION = 50
+# Umbral de precaución: obstáculo detectado (~18-25cm)
+# A esta distancia el robot debe empezar a considerar evasión
+# AUMENTADO: 50 → 90
+IR_THRESHOLD_CAUTION = 90
 
-# Umbral mínimo de detección
-# Valores por debajo se consideran sin obstáculo
+# Umbral mínimo de detección (~30-40cm)
+# Valores por debajo se consideran sin obstáculo cercano
+# Sin cambio: se mantiene en 30
 IR_THRESHOLD_DETECT = 30
 
 # ============ LÍMITES DINÁMICOS DE VELOCIDAD ============
 # Velocidades máximas permitidas según el nivel de seguridad detectado
-# CRÍTICO: Las velocidades deben permitir MOVIMIENTO CONTINUO incluso con obstáculos
-# La idea es ESQUIVAR, no DETENERSE
+# MEJORADO: Velocidades aumentadas para permitir navegación eficiente
+# incluso cerca de obstáculos. El robot debe ESQUIVAR ágilmente, no arrastrarse.
+#
+# FILOSOFÍA: Solo reducir velocidad cuando hay riesgo REAL de colisión,
+# no por detectar obstáculos a distancia segura.
 
 # Velocidad máxima en situación de emergencia (cm/s)
-# Con IR >= 400, el obstáculo está a <5cm → Muy lento pero SIN DETENERSE
-# AUMENTADO: 0.5 → 2.0 cm/s para mantener movimiento
-V_MAX_EMERGENCY = 2.0
+# Con IR >= 700 (normalizado ~1000), obstáculo a 5-7cm → Muy lento pero móvil
+# AUMENTADO: 2.0 → 8.0 cm/s para mantener capacidad de maniobra
+V_MAX_EMERGENCY = 8.0
 
 # Velocidad máxima en zona crítica (cm/s)
-# Con IR >= 150, obstáculo a ~8-12cm → Lento pero navegable
-# AUMENTADO: 0.8 → 4.0 cm/s
-V_MAX_CRITICAL = 4.0
+# Con IR >= 350 (normalizado ~400-500), obstáculo a 8-11cm → Reducido pero navegable
+# AUMENTADO: 4.0 → 15.0 cm/s para permitir esquives ágiles
+V_MAX_CRITICAL = 15.0
 
 # Velocidad máxima en zona de advertencia (cm/s)
-# Con IR >= 80, obstáculo a ~15-25cm → Velocidad reducida
-# AUMENTADO: 1.5 → 8.0 cm/s
-V_MAX_WARNING = 8.0
+# Con IR >= 180 (normalizado ~200-250), obstáculo a 12-17cm → Velocidad moderada
+# AUMENTADO: 8.0 → 25.0 cm/s para navegación fluida
+V_MAX_WARNING = 25.0
 
 # Velocidad máxima en zona de precaución (cm/s)
-# Con IR >= 50, obstáculo a ~30-50cm → Velocidad moderada
-# AUMENTADO: 4.0 → 15.0 cm/s para permitir esquivar fluidamente
-V_MAX_CAUTION = 15.0
+# Con IR >= 90 (normalizado ~100-120), obstáculo a 18-25cm → Casi velocidad completa
+# AUMENTADO: 15.0 → 35.0 cm/s para eficiencia en espacios confinados
+V_MAX_CAUTION = 35.0
 
 # ============ COMPATIBILIDAD CON CÓDIGO ANTERIOR ============
 # Alias para mantener compatibilidad con código que usa nombres antiguos

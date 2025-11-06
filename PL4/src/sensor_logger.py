@@ -1,31 +1,58 @@
 """
 Sistema de monitoreo en tiempo real de sensores del iRobot Create 3
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este módulo implementamos un sistema de monitoreo asíncrono que proporciona
-visualización continua del estado de todos los sensores del robot durante la
-navegación autónoma. Nuestro objetivo principal era crear una herramienta de
-depuración y monitoreo que permitiera observar el comportamiento del robot en
-tiempo real sin interferir con el bucle de control principal.
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
 
-Los objetivos específicos que buscamos alcanzar incluyen:
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Implementar un sistema de monitoreo asíncrono que proporcione visualización
+continua del estado de todos los sensores del robot durante la navegación
+autónoma, permitiendo observar el comportamiento del robot en tiempo real sin
+interferir con el bucle de control principal.
+
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
 
 1. Implementar un sistema de logging asíncrono que funcione en segundo plano
    sin bloquear el bucle principal de navegación
+
 2. Proporcionar visualización periódica de todos los sensores críticos del robot
    incluyendo sensores IR, bumpers, odometría y nivel de batería
+
 3. Integrar análisis de seguridad que muestre el nivel de peligro actual según
    las lecturas de sensores IR frontales
-4. Proporcionar una función de instantánea de sensores para capturas puntuales
+
+4. Aplicar transformaciones de coordenadas para mostrar posiciones en el sistema
+   mundial en lugar del sistema de odometría interno del robot
+
+5. Proporcionar una función de instantánea de sensores para capturas puntuales
    sin iniciar el logger completo
-5. Garantizar que el sistema pueda iniciarse y detenerse de forma limpia sin
+
+6. Garantizar que el sistema pueda iniciarse y detenerse de forma limpia sin
    dejar tareas pendientes
 
 Comportamiento esperado:
@@ -87,14 +114,20 @@ class SensorLogger:
     Logger asíncrono de sensores que imprime información cada LOG_INTERVAL_S
     """
     
-    def __init__(self, robot, interval=None):
+    def __init__(self, robot, interval=None, position_offset_x=0, position_offset_y=0, heading_offset=0):
         """
         Args:
             robot: Instancia del Create3
             interval: Intervalo de logging en segundos (usa config si es None)
+            position_offset_x: Offset en X para corregir odometría (cm)
+            position_offset_y: Offset en Y para corregir odometría (cm)
+            heading_offset: Offset angular para corregir heading (grados)
         """
         self.robot = robot
         self.interval = interval or config.LOG_INTERVAL_S
+        self.position_offset_x = position_offset_x
+        self.position_offset_y = position_offset_y
+        self.heading_offset = heading_offset
         self.running = False
         self.task = None
     
@@ -116,6 +149,17 @@ class SensorLogger:
         bumpers = await self.robot.get_bumpers()
         battery_mv, battery_pct = await self.robot.get_battery_level()
         
+        # APLICAR OFFSETS para mostrar posición corregida
+        actual_x = pos.x + self.position_offset_x
+        actual_y = pos.y + self.position_offset_y
+        actual_heading = pos.heading + self.heading_offset
+        
+        # Normalizar heading a [-180, 180]
+        while actual_heading > 180:
+            actual_heading -= 360
+        while actual_heading <= -180:
+            actual_heading += 360
+        
         ir_sensors = ir_prox.sensors if hasattr(ir_prox, 'sensors') else ir_prox
         
         # Formato compacto y legible
@@ -123,8 +167,8 @@ class SensorLogger:
         print("📊 SENSORES")
         print("="*60)
         
-        # Posición
-        print(f"📍 Posición: x={pos.x:7.2f} cm  y={pos.y:7.2f} cm  θ={pos.heading:6.1f}°")
+        # Posición CORREGIDA
+        print(f"📍 Posición: x={actual_x:7.2f} cm  y={actual_y:7.2f} cm  θ={actual_heading:6.1f}°")
         
         # IR
         if ir_sensors and len(ir_sensors) >= 7:

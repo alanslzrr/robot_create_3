@@ -1,30 +1,56 @@
 """
 Módulo de seguridad para navegación autónoma del iRobot Create 3
 
-Autores: Alan Salazar, Yago Ramos
-Fecha: 4 de noviembre de 2025
-Institución: UIE Universidad Intercontinental de la Empresa
-Asignatura: Robots Autónomos - Profesor Eladio Dapena
-Robot SDK: irobot-edu-sdk
+===============================================================================
+INFORMACIÓN DEL PROYECTO
+===============================================================================
 
-OBJETIVOS PRINCIPALES:
+Autores:
+    - Alan Ariel Salazar
+    - Yago Ramos Sánchez
 
-En este módulo implementamos todas las funciones relacionadas con la seguridad
-del robot durante la navegación autónoma. Nuestro objetivo principal era crear
-una capa de protección robusta que garantizara operación segura del robot y
-prevención de colisiones mediante múltiples mecanismos de detección y control.
+Institución:
+    Universidad Intercontinental de la Empresa (UIE)
 
-Los objetivos específicos que buscamos alcanzar incluyen:
+Profesor:
+    Eladio Dapena
+
+Asignatura:
+    Robots Autónomos
+
+Fecha de Finalización:
+    6 de noviembre de 2025
+
+Robot SDK:
+    irobot-edu-sdk
+
+===============================================================================
+OBJETIVO GENERAL
+===============================================================================
+
+Implementar todas las funciones relacionadas con la seguridad del robot durante
+la navegación autónoma, creando una capa de protección robusta que garantice
+operación segura del robot y prevención de colisiones mediante múltiples
+mecanismos de detección y control.
+
+===============================================================================
+OBJETIVOS ESPECÍFICOS
+===============================================================================
 
 1. Implementar saturación de velocidades que limite los comandos a rangos seguros
    del hardware del robot, previniendo daños a los motores
+
 2. Desarrollar un sistema de detección temprana de obstáculos usando sensores IR
    que permita reducir velocidad antes de que ocurran colisiones físicas
+
 3. Implementar manejo de colisiones físicas mediante bumpers para detectar cuando
    el robot ha chocado y necesitamos detener el movimiento
+
 4. Proporcionar funciones de reducción progresiva de velocidad según la proximidad
    de obstáculos detectados, implementando un sistema de factores de reducción
-5. Integrar todas estas funciones como capas independientes que trabajan en conjunto
+   proporcionales
+
+5. Integrar todas estas funciones como capas independientes que trabajen en conjunto
    para proporcionar múltiples niveles de protección
 
 CONFIGURACIÓN:
