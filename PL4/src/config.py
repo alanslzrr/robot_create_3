@@ -82,8 +82,9 @@ ACCEL_RAMP_CM_S2 = 5.0
 # ============ PARÁMETROS DE POTENCIAL ATRACTIVO ============
 # Ganancia angular para corrección de orientación
 # Controla qué tan agresivamente el robot corrige su dirección hacia el objetivo
-# Valor aumentado para permitir giros más rápidos durante evasión de obstáculos
-K_ANGULAR = 2.0
+# AUMENTADO: 2.0 → 3.0 para permitir reacciones de giro MÁS rápidas ante obstáculos
+# Con mayor ganancia angular, el robot puede cambiar dirección más rápidamente
+K_ANGULAR = 3.0
 
 # Ganancias lineales específicas para cada tipo de función de potencial
 # Cada función tiene características diferentes de escala, por lo que requiere
@@ -106,33 +107,107 @@ K_CONIC = 0.15
 K_EXPONENTIAL = 2.5
 
 # ============ PARÁMETROS DE POTENCIAL REPULSIVO ============
-# Estos parámetros están ajustados para permitir EVASIÓN efectiva de obstáculos
-# sin detener completamente el robot. Las fuerzas son moderadas para desviar
-# la trayectoria en lugar de causar paradas bruscas
+# Estos parámetros están ajustados para permitir EVASIÓN AGRESIVA de obstáculos
+# Las fuerzas deben ser lo suficientemente FUERTES para desviar la trayectoria
+# ANTES de que el robot colisione, pero NO TAN FUERTES que dominen completamente
 
 # Ganancia repulsiva que controla la intensidad de las fuerzas de evasión
 # Valores altos generan evasión más agresiva, valores bajos permiten acercarse más
-# AUMENTADO: de 500 → 2500 para esquive más rápido y decidido
-K_REPULSIVE = 2500.0
+# NUEVA ESTRATEGIA: En lugar de empujar LEJOS, guiamos HACIA espacio libre
+# Por tanto necesitamos valor MUY REDUCIDO que solo CORRIGE dirección, no domina
+# REDUCIDO: 4000 → 500 para enfoque direccional inteligente
+K_REPULSIVE = 500.0
 
 # Distancia de influencia del campo repulsivo en centímetros
 # Los obstáculos más lejos que esta distancia no generan fuerzas repulsivas
-# AUMENTADO: de 30cm → 50cm para reaccionar antes y con más espacio
-D_INFLUENCE = 50.0
+# IMPORTANTE: Esta distancia se mide desde el BORDE del robot, no desde el centro
+# REDUCIDO: 100cm → 80cm para reducir influencia de obstáculos lejanos
+# Con diámetro del robot (34.19cm) esto da margen razonable
+D_INFLUENCE = 80.0
 
 # Distancia de seguridad mínima absoluta
 # Referencia para validaciones adicionales si es necesario
-D_SAFE = 8.0
+# AUMENTADO: 8.0 → 12.0cm para compensar imprecisiones de estimación
+D_SAFE = 12.0
+
+# ============ PARÁMETROS DE ESCAPE DE TRAMPAS (Mínimos Locales) ============
+# Configuración para permitir que el robot escape de situaciones de trampa en C
+# donde hay obstáculos adelante, izquierda y derecha simultáneamente
+
+# Habilitar modo de escape de trampa en C
+# Cuando está atrapado, el robot reduce temporalmente la fuerza atractiva
+# para permitir que las fuerzas repulsivas lo guíen hacia la apertura
+ENABLE_TRAP_ESCAPE = True
+
+# Umbral de detección de trampa: número mínimo de sensores con obstáculos
+# Si 5 o más sensores detectan obstáculos simultáneamente, consideramos trampa
+TRAP_DETECTION_SENSOR_COUNT = 5
+
+# Umbral de intensidad IR para considerar un sensor como "bloqueado"
+# Valores IR por encima de este umbral indican obstáculo significativo
+TRAP_DETECTION_IR_THRESHOLD = 100
+
+# Factor de reducción de fuerza atractiva cuando está atrapado
+# Reducir a 30% permite que las fuerzas repulsivas dominen y encuentren salida
+# Valor entre 0.0 (sin atracción) y 1.0 (atracción normal)
+TRAP_ATTRACTIVE_REDUCTION = 0.3
+
+# Aumentar fuerza repulsiva cuando está atrapado
+# Multiplicador de K_REPULSIVE para hacer el esquive más agresivo
+# 1.5 = +50% de fuerza repulsiva
+TRAP_REPULSIVE_BOOST = 1.5
+
+# Velocidad mínima garantizada durante escape de trampa
+# Incluso en trampa, el robot debe mantener movimiento hacia adelante
+# Esto previene quedarse completamente detenido (giro sobre eje)
+TRAP_MIN_FORWARD_SPEED = 4.0  # cm/s
+
+# Factor de aumento de ganancia angular durante escape
+# Permite giros más cerrados para encontrar la apertura de la C
+# 1.5 = +50% de capacidad de giro
+TRAP_ANGULAR_BOOST = 1.5
 
 # ============ GEOMETRÍA DEL ROBOT ============
 # Dimensiones físicas del robot necesarias para cálculos de posicionamiento
 # de sensores y estimación de distancias a obstáculos
+# MEDIDAS REALES verificadas físicamente:
 
-# Radio exterior del chasis en centímetros (162.0 mm según especificaciones)
-ROBOT_RADIUS_CM = 16.2
+# Radio exterior del chasis en centímetros
+# Medida real: diámetro = 341.9mm → radio = 170.95mm
+ROBOT_RADIUS_CM = 17.095
 
-# Diámetro efectivo del robot considerando el espacio necesario para movimiento
-ROBOT_DIAMETER_CM = 29.42
+# Diámetro efectivo del robot 
+# Medida real verificada: 341.9mm = 34.19cm
+ROBOT_DIAMETER_CM = 34.19
+
+# Distancia entre centros de ruedas (wheelbase)
+# Medida real verificada: 235mm = 23.5cm
+# Nota: Ya está definido en WHEEL_BASE_CM = 23.5
+
+# Diámetro de las ruedas
+# Medida real verificada: 72mm = 7.2cm
+WHEEL_DIAMETER_CM = 7.2
+
+# ============ CALIBRACIÓN ESPECÍFICA POR SENSOR IR ============
+# Factores de normalización basados en calibración real a 5cm
+# Estos factores convierten las lecturas de cada sensor a un valor equivalente
+# permitiendo usar umbrales uniformes a pesar de sensibilidades diferentes
+#
+# Fórmula: IR_normalizado = IR_real / SENSOR_SENSITIVITY_FACTOR
+# Valores basados en mediciones perpendiculares a 5cm:
+
+IR_SENSOR_SENSITIVITY_FACTORS = {
+    0: 1382.0 / 1000.0,  # Sensor 0: 1382 a 5cm → factor 1.382
+    1: 1121.0 / 1000.0,  # Sensor 1: 1121 a 5cm → factor 1.121
+    2: 270.0 / 1000.0,   # Sensor 2: 270 a 5cm → factor 0.270
+    3: 1045.0 / 1000.0,  # Sensor 3: 1045 a 5cm → factor 1.045
+    4: 896.0 / 1000.0,   # Sensor 4: 896 a 5cm → factor 0.896
+    5: 672.0 / 1000.0,   # Sensor 5: 672 a 5cm → factor 0.672
+    6: 901.0 / 1000.0    # Sensor 6: 901 a 5cm → factor 0.901
+}
+
+# Valor de referencia: 1000 (valor normalizado esperado a 5cm)
+IR_REFERENCE_VALUE_AT_5CM = 1000.0
 
 # ============ CONFIGURACIÓN DE SENSORES INFRARROJOS ============
 # Radio de montaje de los sensores IR asumiendo que están en el borde frontal
@@ -158,52 +233,67 @@ IR_SENSOR_ANGLES = {
 }
 
 # ============ SISTEMA DE SEGURIDAD - UMBRALES ESCALONADOS ============
-# Estos umbrales están basados en calibración real realizada con obstáculos
-# a 5 cm del robot. Los valores de sensores IR varían según:
-# - Frontales directos (sensores 3,4): ~900-1050
-# - Frontales en esquina (sensores 0,1,2): ~270-1380
-# - Laterales (sensores 5,6): ~660-900
+# BASADO EN CALIBRACIÓN REAL - Distancia de 5cm del borde:
+# - Sensor 0 (lateral izq extremo): 1382-1386 a 5cm - MUY SENSIBLE
+# - Sensor 1 (lateral izq): 1121-1123 a 5cm - MUY SENSIBLE
+# - Sensor 2 (frontal izq): 268-271 a 5cm - MODERADO
+# - Sensor 3 (frontal centro): 1044-1046 a 5cm - MUY SENSIBLE
+# - Sensor 4 (frontal der): 895-898 a 5cm - SENSIBLE
+# - Sensor 5 (lateral der): 669-676 a 5cm - MENOS SENSIBLE
+# - Sensor 6 (lateral der extremo): 900-902 a 5cm - MODERADO
 #
-# Implementamos un sistema de umbrales escalonados para control robusto que
-# reduce gradualmente la velocidad según la proximidad de obstáculos detectados,
-# garantizando tiempo suficiente de reacción
+# IMPORTANTE: Los sensores tienen DIFERENTE sensibilidad
+# Los frontales (0,1,3,4) son más sensibles que los laterales (5,6)
+# Ajustamos umbrales para compensar estas diferencias
+#
+# ESTRATEGIA: Umbrales más altos = obstáculo MÁS cerca
+# Con calibración real, definimos umbrales conservadores
 
-# Umbral de emergencia: obstáculo muy cerca (<5cm perpendicular)
-# En este caso el robot debe detenerse completamente
-IR_THRESHOLD_EMERGENCY = 800
+# Umbral de emergencia: obstáculo MUY cerca (<5cm)
+# Basado en valores mínimos a 5cm: sensor 2 da ~270, otros >600
+# Usamos promedio: (270+600)/2 = ~400 para balance
+IR_THRESHOLD_EMERGENCY = 400
 
-# Umbral crítico: obstáculo cerca (~5-10cm)
-# Velocidad reducida a máximo 10 cm/s
-IR_THRESHOLD_CRITICAL = 400
+# Umbral crítico: obstáculo cerca (~8-12cm estimado)
+# A esta distancia el IR cae a ~150-250 según sensor
+IR_THRESHOLD_CRITICAL = 150
 
-# Umbral de advertencia: obstáculo a distancia media (~10-20cm)
-# Velocidad reducida a máximo 20 cm/s
-IR_THRESHOLD_WARNING = 200
+# Umbral de advertencia: obstáculo a distancia media (~15-25cm)
+# A esta distancia IR ~80-120
+IR_THRESHOLD_WARNING = 80
 
-# Umbral de precaución: obstáculo lejano (~20-40cm)
-# Velocidad reducida a máximo 30 cm/s
-IR_THRESHOLD_CAUTION = 100
+# Umbral de precaución: obstáculo detectado (~30-50cm)
+# A esta distancia IR ~40-60
+IR_THRESHOLD_CAUTION = 50
 
 # Umbral mínimo de detección
-# Valores por debajo de este umbral se consideran sin obstáculo
-IR_THRESHOLD_DETECT = 50
+# Valores por debajo se consideran sin obstáculo
+IR_THRESHOLD_DETECT = 30
 
 # ============ LÍMITES DINÁMICOS DE VELOCIDAD ============
 # Velocidades máximas permitidas según el nivel de seguridad detectado
-# Estos límites se aplican dinámicamente durante la navegación para garantizar
-# tiempo suficiente de frenado ante obstáculos
+# CRÍTICO: Las velocidades deben permitir MOVIMIENTO CONTINUO incluso con obstáculos
+# La idea es ESQUIVAR, no DETENERSE
 
-# Velocidad máxima en situación de emergencia: parar completamente
-V_MAX_EMERGENCY = 0.0
+# Velocidad máxima en situación de emergencia (cm/s)
+# Con IR >= 400, el obstáculo está a <5cm → Muy lento pero SIN DETENERSE
+# AUMENTADO: 0.5 → 2.0 cm/s para mantener movimiento
+V_MAX_EMERGENCY = 2.0
 
 # Velocidad máxima en zona crítica (cm/s)
-V_MAX_CRITICAL = 10.0
+# Con IR >= 150, obstáculo a ~8-12cm → Lento pero navegable
+# AUMENTADO: 0.8 → 4.0 cm/s
+V_MAX_CRITICAL = 4.0
 
 # Velocidad máxima en zona de advertencia (cm/s)
-V_MAX_WARNING = 20.0
+# Con IR >= 80, obstáculo a ~15-25cm → Velocidad reducida
+# AUMENTADO: 1.5 → 8.0 cm/s
+V_MAX_WARNING = 8.0
 
 # Velocidad máxima en zona de precaución (cm/s)
-V_MAX_CAUTION = 30.0
+# Con IR >= 50, obstáculo a ~30-50cm → Velocidad moderada
+# AUMENTADO: 4.0 → 15.0 cm/s para permitir esquivar fluidamente
+V_MAX_CAUTION = 15.0
 
 # ============ COMPATIBILIDAD CON CÓDIGO ANTERIOR ============
 # Alias para mantener compatibilidad con código que usa nombres antiguos
@@ -249,3 +339,65 @@ TELEOP_GIRO = 8
 # Este archivo se genera mediante point_manager.py y se lee al inicio de
 # la navegación para obtener las coordenadas inicial y final
 POINTS_FILE = "points.json"
+
+# ============ CALIBRACIÓN DE CONVERSIÓN IR A DISTANCIA ============
+# Datos de calibración real obtenidos con obstáculos perpendiculares
+# a diferentes distancias del robot Create3
+
+# Puntos de referencia para conversión IR→Distancia basados en calibración real:
+# Formato: (distancia_cm, valor_IR_frontal_típico)
+# NOTA: Los valores IR pueden variar según el ángulo y tipo de superficie
+IR_CALIBRATION_POINTS = [
+    (5.0, 1000),    # A 5cm del borde: ~800-1400 según sensor y ángulo
+    (10.0, 400),    # Estimación intermedia basada en modelo inverso al cuadrado
+    (15.0, 200),    # Estimación
+    (20.0, 120),    # Estimación
+    (30.0, 60),     # Umbral de precaución
+    (40.0, 40),     # Umbral mínimo de detección
+    (50.0, 25),     # Muy débil, casi sin obstáculo
+]
+
+# Modelo de conversión IR→Distancia
+# Los sensores IR siguen aproximadamente: intensidad ∝ 1/distancia²
+# Por tanto: distancia = k / sqrt(intensidad)
+
+# Constante de calibración basada en medición a 5cm con IR≈1000
+# d = k / sqrt(I)  →  5 = k / sqrt(1000)  →  k ≈ 158
+IR_DISTANCE_CONSTANT = 158.0
+
+# Rango válido de estimación de distancia
+IR_MIN_DISTANCE_CM = 4.0    # Distancia mínima estimable (muy cerca)
+IR_MAX_DISTANCE_CM = 60.0   # Distancia máxima estimable (señal débil)
+
+# ============ DETECCIÓN DE GAPS (PASILLOS) NAVEGABLES ============
+# Parámetros para detectar espacios entre obstáculos por donde el robot puede pasar
+
+# Ancho mínimo del gap para considerar navegable (cm)
+# Debe ser mayor que el diámetro del robot (34.19cm) más un margen de seguridad
+# Con diámetro real de 34.19cm, necesitamos:
+# - Diámetro robot: 34.19cm
+# - Margen seguridad: ~15cm por lado (tolerancia de control y giros)
+# - Total mínimo: 34.19 + 30 = ~65cm
+GAP_MIN_WIDTH_CM = 65.0
+
+# Diferencia mínima de ángulo entre sensores adyacentes para considerar como gap (grados)
+# Los sensores están típicamente separados por 15-30 grados
+GAP_MIN_ANGLE_SEPARATION_DEG = 15.0
+
+# Umbral de IR para considerar un sensor como "libre" (sin obstáculo significativo)
+# Valores menores que este umbral indican espacio libre
+GAP_CLEAR_THRESHOLD = 60
+
+# Umbral de IR para considerar un sensor como "bloqueado" (con obstáculo)
+# Valores mayores que este umbral indican obstáculo presente
+GAP_BLOCKED_THRESHOLD = 100
+
+# Factor de reducción de fuerza repulsiva cuando hay gap navegable
+# Reduce las fuerzas repulsivas de los obstáculos laterales del gap
+# para permitir que el robot pase entre ellos
+GAP_REPULSION_REDUCTION_FACTOR = 0.3  # Reducir al 30%
+
+# ============ GEOMETRÍA DE NAVEGACIÓN POR GAPS ============
+# Radio de seguridad efectivo considerando el ancho del robot y margen de maniobra
+# Usado para calcular si el robot cabe en un gap detectado
+ROBOT_WIDTH_WITH_MARGIN_CM = ROBOT_DIAMETER_CM + 25.0  # 34.19 + 25 = ~59.19 cm

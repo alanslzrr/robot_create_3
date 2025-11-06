@@ -237,7 +237,7 @@ class CombinedPotentialNavigator:
     a la meta.
     """
     
-    def __init__(self, robot, q_goal, potential_type='linear', k_rep=None, d_influence=None, debug=False):
+    def __init__(self, robot, q_initial, q_goal, potential_type='linear', k_rep=None, d_influence=None, debug=False):
         """
         Inicializa el navegador con los parámetros de configuración.
         
@@ -248,6 +248,8 @@ class CombinedPotentialNavigator:
         
         Args:
             robot: Instancia del robot Create3 conectado
+            q_initial: Tupla (x, y, theta) con posición y orientación inicial
+            q_initial: Tupla (x, y, theta) con posición y orientación inicial
             q_goal: Tupla (x, y) con coordenadas del objetivo
             potential_type: Tipo de función de potencial atractivo
             k_rep: Ganancia repulsiva (usa config.K_REPULSIVE si es None)
@@ -256,6 +258,7 @@ class CombinedPotentialNavigator:
             debug: Si es True, muestra información detallada cada 10 iteraciones
         """
         self.robot = robot
+        self.q_initial = q_initial  # Guardar posición y orientación inicial
         self.q_goal = q_goal
         self.potential_type = potential_type
         self.k_rep = k_rep or config.K_REPULSIVE
@@ -297,6 +300,22 @@ class CombinedPotentialNavigator:
         """
         # Resetear la odometría del robot al inicio de la navegación
         await self.robot.reset_navigation()
+        
+        # NOTA: NO aplicamos offset de orientación porque:
+        # 1. La función de potencial calcula ángulo al objetivo en marco GLOBAL usando atan2(dy,dx)
+        # 2. El heading del robot también está en marco GLOBAL
+        # 3. Aplicar un offset causa confusión entre marcos de referencia
+        # 4. La orientación inicial en points.json solo importa para la dirección de salida,
+        #    pero el campo de potencial corrige automáticamente hacia el objetivo
+        
+        # Obtener el heading real inicial del robot después del reset
+        pos_initial = await self.robot.get_position()
+        real_heading_at_start = pos_initial.heading
+        desired_heading = self.q_initial[2]
+        
+        print(f"[INFO] Orientacion deseada en points.json: {desired_heading:.1f}°")
+        print(f"[INFO] Orientacion real del robot: {real_heading_at_start:.1f}°")
+        print(f"[INFO] Nota: El campo de potencial guiará al robot hacia el objetivo")
         print(f"[INFO] Navegacion iniciada con potencial combinado: {self.potential_type}\n")
         
         # Resetear la rampa de aceleración para empezar desde velocidad cero
@@ -315,7 +334,7 @@ class CombinedPotentialNavigator:
         # Variables para control de iteraciones y colisiones
         iteration = 0
         collision_count = 0
-        MAX_COLLISIONS = 3
+        MAX_COLLISIONS = 5  # Aumentado de 3 a 5 para dar más oportunidades de navegación
         
         try:
             while self.running:
@@ -323,7 +342,37 @@ class CombinedPotentialNavigator:
                 
                 # Leer el estado actual del robot
                 pos = await self.robot.get_position()
+                
+                # VALIDACIÓN: A veces get_position() puede devolver None
+                if pos is None:
+                    print("[WARNING] get_position() devolvió None, reintentando...")
+                    await self.robot.wait(0.05)
+                    continue
+                
+                # Usar directamente la posición del robot SIN offset
+                # El campo de potencial calculará automáticamente la dirección correcta
+                # hacia el objetivo usando atan2(dy_goal, dx_goal) en coordenadas globales
                 q = (pos.x, pos.y, pos.heading)
+                
+                # CALCULAR DISTANCIA AL OBJETIVO PRIMERO
+                dx = self.q_goal[0] - pos.x
+                dy = self.q_goal[1] - pos.y
+                distance = math.hypot(dx, dy)
+                
+                # DETENCIÓN INMEDIATA si estamos en el objetivo
+                # Esto evita que el robot gire sobre su eje cuando llega
+                # Aumentamos ligeramente la tolerancia porque la odometría tiene drift
+                TOLERANCE_CM = 10.0  # 10 cm en vez de 5 cm para convergencia más fácil
+                if distance < TOLERANCE_CM:
+                    print(f"\n[SUCCESS] Meta alcanzada! Distancia: {distance:.2f} cm")
+                    print(f"           Posicion final: x={pos.x:.1f}, y={pos.y:.1f}, theta={pos.heading:.1f} deg")
+                    await self.robot.set_wheel_speeds(0, 0)
+                    await self.robot.set_lights_rgb(0, 255, 0)  # LED VERDE
+                    await self.robot.play_note(80, 0.2)
+                    self.logger.stop()
+                    self.vel_logger.stop()
+                    self.running = False
+                    return True
                 
                 # Leer sensores IR para detección de obstáculos en tiempo real
                 ir_prox = await self.robot.get_ir_proximity()
@@ -333,7 +382,7 @@ class CombinedPotentialNavigator:
                 # Calcular velocidades usando potencial COMBINADO (atractivo + repulsivo)
                 # Esta función toma en cuenta las lecturas IR para calcular obstáculos
                 # y generar fuerzas repulsivas que modifican la trayectoria
-                v_left, v_right, distance, info = combined_potential_speeds(
+                v_left, v_right, dist_from_func, info = combined_potential_speeds(
                     q, self.q_goal, 
                     ir_sensors=ir_sensors,
                     k_rep=self.k_rep,
@@ -353,29 +402,8 @@ class CombinedPotentialNavigator:
                     distance, v_left, v_right, info
                 )
                 
-                # Verificar si hemos alcanzado la meta
-                if distance < config.TOL_DIST_CM:
-                    await self.robot.set_wheel_speeds(0, 0)
-                    
-                    # LED VERDE: Meta alcanzada
-                    await self.robot.set_lights_rgb(0, 255, 0)
-                    
-                    self.logger.stop()
-                    self.vel_logger.stop()
-                    
-                    # Calcular la distancia total recorrida desde el origen
-                    dist_traveled = math.hypot(pos.x, pos.y)
-                    
-                    # Mostrar resumen de la misión completada
-                    print("\n" + "="*60)
-                    print("[SUCCESS] META ALCANZADA")
-                    print("="*60)
-                    print(f"Potencial usado: {self.potential_type} + repulsivo")
-                    print(f"Posicion final: x={pos.x:.1f}, y={pos.y:.1f}, theta={pos.heading:.1f} deg")
-                    print(f"Distancia recorrida: {dist_traveled:.1f} cm")
-                    print(f"Error a meta: {distance:.1f} cm")
-                    print("="*60)
-                    return True
+                # Ya verificamos distancia arriba y nos detuvimos si llegamos
+                # Aquí continuamos con manejo de colisiones y envío de velocidades
                 
                 # Manejo de emergencias: colisión física detectada por bumpers
                 if emergency_stop_needed(bumpers):
@@ -415,12 +443,12 @@ class CombinedPotentialNavigator:
                 # Obtener información de obstáculos y nivel de seguridad
                 num_obstacles = info.get('num_obstacles', 0)
                 safety_level = info.get('safety_level', 'CLEAR')
-                max_ir_front = info.get('max_ir_front', 0)
+                max_ir_all = info.get('max_ir_all', 0)
                 
                 # Determinar el estado actual del robot
-                if num_obstacles > 0 and max_ir_front >= config.IR_THRESHOLD_CAUTION:
+                if num_obstacles > 0 and max_ir_all >= config.IR_THRESHOLD_CAUTION:
                     # Hay obstáculos detectados dentro del rango de influencia
-                    if max_ir_front >= config.IR_THRESHOLD_WARNING:
+                    if max_ir_all >= config.IR_THRESHOLD_WARNING:
                         # ESQUIVANDO: Obstáculo cerca, maniobra activa
                         if self.current_led_color != 'cyan':
                             await self.robot.set_lights_rgb(0, 255, 255)  # CYAN
@@ -594,9 +622,10 @@ Ejemplos de uso:
         nonlocal navigator, mission_success
         
         # Crear la instancia del navegador con los parámetros configurados,
-        # incluyendo los parámetros del potencial repulsivo
+        # incluyendo la posición inicial completa (x, y, theta) y los
+        # parámetros del potencial repulsivo
         navigator = CombinedPotentialNavigator(
-            robot, q_f, 
+            robot, q_i, q_f,  # Pasar AMBOS q_i (con theta) y q_f
             potential_type=args.potential,
             k_rep=args.k_rep,
             d_influence=args.d_influence,

@@ -212,7 +212,7 @@ class AttractiveFieldNavigator:
     comandos a las ruedas del robot.
     """
     
-    def __init__(self, robot, q_goal, potential_type='linear', debug=False):
+    def __init__(self, robot, q_initial, q_goal, potential_type='linear', debug=False):
         """
         Inicializa el navegador con los parámetros de configuración.
         
@@ -222,12 +222,14 @@ class AttractiveFieldNavigator:
         
         Args:
             robot: Instancia del robot Create3 conectado
+            q_initial: Tupla (x, y, theta) con posición y orientación inicial
             q_goal: Tupla (x, y) con coordenadas del objetivo
             potential_type: Tipo de función de potencial ('linear', 'quadratic',
                            'conic', 'exponential')
             debug: Si es True, muestra información detallada cada 10 iteraciones
         """
         self.robot = robot
+        self.q_initial = q_initial
         self.q_goal = q_goal
         self.potential_type = potential_type
         self.debug = debug
@@ -264,6 +266,22 @@ class AttractiveFieldNavigator:
         """
         # Resetear la odometría del robot al inicio de la navegación
         await self.robot.reset_navigation()
+        
+        # ESTRATEGIA: En lugar de modificar el heading del robot (que no es posible),
+        # calculamos un offset de orientación que se aplicará en cada iteración.
+        # Esto permite simular cualquier orientación inicial configurada en points.json
+        
+        # Obtener el heading real inicial del robot después del reset (debería ser ~0)
+        pos_initial = await self.robot.get_position()
+        real_heading_at_start = pos_initial.heading
+        
+        # Calcular el offset entre el heading deseado (de points.json) y el real
+        desired_heading = self.q_initial[2]
+        self.heading_offset = desired_heading - real_heading_at_start
+        
+        print(f"[INFO] Orientacion deseada: {desired_heading:.1f}°")
+        print(f"[INFO] Orientacion real inicial: {real_heading_at_start:.1f}°")
+        print(f"[INFO] Offset aplicado: {self.heading_offset:.1f}°")
         print(f"[INFO] Navegacion iniciada con potencial: {self.potential_type}\n")
         
         # Resetear la rampa de aceleración para empezar desde velocidad cero
@@ -289,7 +307,37 @@ class AttractiveFieldNavigator:
                 
                 # Leer el estado actual del robot
                 pos = await self.robot.get_position()
-                q = (pos.x, pos.y, pos.heading)
+                
+                # VALIDACIÓN: A veces get_position() puede devolver None
+                if pos is None:
+                    print("[WARNING] get_position() devolvió None, reintentando...")
+                    await self.robot.wait(0.05)
+                    continue
+                
+                # IMPORTANTE: Aplicar el offset de orientación para simular el theta inicial
+                # Esto permite que el robot "piense" que tiene una orientación diferente
+                adjusted_heading = pos.heading + self.heading_offset
+                q = (pos.x, pos.y, adjusted_heading)
+                
+                # CALCULAR DISTANCIA AL OBJETIVO PRIMERO
+                dx = self.q_goal[0] - pos.x
+                dy = self.q_goal[1] - pos.y
+                distance = math.hypot(dx, dy)
+                
+                # DETENCIÓN INMEDIATA si estamos en el objetivo
+                # Esto evita que el robot gire sobre su eje cuando llega
+                # Aumentamos ligeramente la tolerancia porque la odometría tiene drift
+                TOLERANCE_CM = 10.0  # 10 cm en vez de 5 cm para convergencia más fácil
+                if distance < TOLERANCE_CM:
+                    print(f"\n[SUCCESS] Meta alcanzada! Distancia: {distance:.2f} cm")
+                    print(f"           Posicion final: x={pos.x:.1f}, y={pos.y:.1f}, theta={pos.heading:.1f} deg")
+                    await self.robot.set_wheel_speeds(0, 0)
+                    await self.robot.set_lights_rgb(0, 255, 0)  # LED VERDE
+                    await self.robot.play_note(80, 0.2)
+                    self.logger.stop()
+                    self.vel_logger.stop()
+                    self.running = False
+                    return True
                 
                 # Leer sensores para detección de obstáculos
                 ir_prox = await self.robot.get_ir_proximity()
@@ -299,7 +347,7 @@ class AttractiveFieldNavigator:
                 # Calcular velocidades usando la función de potencial atractivo
                 # seleccionada. Esta función retorna las velocidades de rueda,
                 # la distancia al objetivo, y información adicional para logging
-                v_left, v_right, distance, info = attractive_wheel_speeds(
+                v_left, v_right, dist_from_func, info = attractive_wheel_speeds(
                     q, self.q_goal, potential_type=self.potential_type
                 )
                 
@@ -309,29 +357,8 @@ class AttractiveFieldNavigator:
                     distance, v_left, v_right, info
                 )
                 
-                # Verificar si hemos alcanzado la meta
-                if distance < config.TOL_DIST_CM:
-                    await self.robot.set_wheel_speeds(0, 0)
-                    
-                    # LED VERDE: Meta alcanzada
-                    await self.robot.set_lights_rgb(0, 255, 0)
-                    
-                    self.logger.stop()
-                    self.vel_logger.stop()
-                    
-                    # Calcular la distancia total recorrida desde el origen
-                    dist_traveled = math.hypot(pos.x, pos.y)
-                    
-                    # Mostrar resumen de la misión completada
-                    print("\n" + "="*60)
-                    print("[SUCCESS] META ALCANZADA")
-                    print("="*60)
-                    print(f"Potencial usado: {self.potential_type}")
-                    print(f"Posicion final: x={pos.x:.1f}, y={pos.y:.1f}, theta={pos.heading:.1f} deg")
-                    print(f"Distancia recorrida: {dist_traveled:.1f} cm")
-                    print(f"Error a meta: {distance:.1f} cm")
-                    print("="*60)
-                    return True
+                # Ya verificamos distancia arriba y nos detuvimos si llegamos
+                # Aquí continuamos con manejo de colisiones, slowdown y envío de velocidades
                 
                 # Manejo de emergencias: colisión física detectada por bumpers
                 if emergency_stop_needed(bumpers):
@@ -507,8 +534,9 @@ Ejemplos de uso:
         nonlocal navigator, mission_success
         
         # Crear la instancia del navegador con los parámetros configurados
+        # Pasar AMBOS q_i (con theta) y q_f para que use la orientación inicial
         navigator = AttractiveFieldNavigator(
-            robot, q_f, 
+            robot, q_i, q_f,
             potential_type=args.potential,
             debug=args.debug
         )
