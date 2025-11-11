@@ -153,6 +153,28 @@ def validate_config(config_path: str = "config.yaml") -> Tuple[bool, Dict[str, A
     if errors:
         return False, config, "; ".join(errors)
     
+    # Validar potential_nav (opcional pero recomendado)
+    pnav = config.get('potential_nav', {})
+    if pnav:
+        try:
+            float(pnav.get('k_linear', 0.25))
+            float(pnav.get('k_quadratic', 0.05))
+            float(pnav.get('k_conic', 0.15))
+            float(pnav.get('k_exponential', 2.5))
+            float(pnav.get('k_angular', 3.0))
+            float(pnav.get('k_repulsive', 300.0))
+            float(pnav.get('d_influence_cm', 100.0))
+            float(pnav.get('v_max_cm_s', 38.0))
+            float(pnav.get('tolerance_cm', 10.0))
+            float(pnav.get('control_dt', 0.05))
+            int(pnav.get('ir_threshold_caution', 90))
+            int(pnav.get('ir_threshold_warning', 180))
+            default_type = pnav.get('default_type', 'linear')
+            if default_type not in ['linear', 'quadratic', 'conic', 'exponential']:
+                errors.append("potential_nav.default_type debe ser linear/quadratic/conic/exponential")
+        except Exception:
+            errors.append("potential_nav contiene valores no numéricos")
+    
     return True, config, ""
 
 def get_validated_config(config_path: str = "config.yaml") -> Dict[str, Any]:
@@ -199,6 +221,11 @@ def print_config_summary(config: Dict[str, Any]) -> None:
     period = telemetry.get('period_s', 'NO DEFINIDO')
     logdir = telemetry.get('log_dir', 'NO DEFINIDO')
     print(f"Telemetry: period={period}s, dir={logdir}")
+    
+    # Potential Nav
+    pnav = config.get('potential_nav', {})
+    if pnav:
+        print("PotentialNav: enabled (params present)")
     
     print("=" * 30)
 

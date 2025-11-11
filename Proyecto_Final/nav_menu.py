@@ -24,6 +24,7 @@ from core.config_validator import get_validated_config, print_config_summary
 from core.safety import SafetyMonitorV2
 from core.telemetry import TelemetryLogger
 from core.ir_avoid import IRAvoidNavigator
+from core.potential_nav import CombinedPotentialNavigator, POTENTIAL_TYPES
 
 # --- Cargar configuración validada ---
 try:
@@ -46,6 +47,7 @@ current_pose = [0.0, 0.0, 0.0]
 _safety: Optional[SafetyMonitorV2] = None
 _telemetry: Optional[TelemetryLogger] = None
 current_nav_task: Optional[asyncio.Task] = None
+current_target_node_id: Optional[int] = None
 
 class NavigationGUI:
     """GUI principal de navegación"""
@@ -130,6 +132,7 @@ class NavigationGUI:
         self.mode_var = tk.StringVar(value="direct")
         ttk.Radiobutton(mode_frame, text="Direct", variable=self.mode_var, value="direct").pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(mode_frame, text="Replay", variable=self.mode_var, value="replay").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(mode_frame, text="Potential", variable=self.mode_var, value="potential").pack(side=tk.LEFT, padx=5)
 
         # === PANEL DERECHO: INFORMACIÓN ===
         right_frame = ttk.LabelFrame(main_frame, text="Información", padding="5")
@@ -166,6 +169,111 @@ class NavigationGUI:
         center_frame.rowconfigure(3, weight=1)
         right_frame.rowconfigure(9, weight=1)
         right_frame.columnconfigure(0, weight=1)
+
+        # === MAPA 2D EN TIEMPO REAL ===
+        map_frame = ttk.LabelFrame(main_frame, text="Mapa 2D (Tiempo real)", padding="5")
+        map_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(8, 0))
+        self.map_canvas_width = 900
+        self.map_canvas_height = 380
+        self.map_canvas = tk.Canvas(map_frame, width=self.map_canvas_width, height=self.map_canvas_height, background="white")
+        self.map_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        map_frame.rowconfigure(0, weight=1)
+        map_frame.columnconfigure(0, weight=1)
+
+    def _world_to_canvas(self, x_cm: float, y_cm: float, bounds) -> tuple:
+        (min_x, min_y, max_x, max_y) = bounds
+        W = self.map_canvas_width
+        H = self.map_canvas_height
+        margin = 20.0
+        span_x = max(10.0, (max_x - min_x))
+        span_y = max(10.0, (max_y - min_y))
+        scale = min((W - 2 * margin) / span_x, (H - 2 * margin) / span_y)
+        cx = margin + (x_cm - min_x) * scale
+        cy_up = margin + (y_cm - min_y) * scale
+        cy = H - cy_up  # invertir Y para Canvas
+        return cx, cy
+
+    def draw_map(self):
+        try:
+            nodes = load_nodes()
+            edges = load_edges()
+        except Exception:
+            nodes, edges = [], []
+
+        xs = [n["x"] for n in nodes] + [current_pose[0]]
+        ys = [n["y"] for n in nodes] + [current_pose[1]]
+        if not xs or not ys:
+            xs, ys = [0.0, 500.0], [0.0, 500.0]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        pad = 20.0
+        bounds = (min_x - pad, min_y - pad, max_x + pad, max_y + pad)
+
+        c = self.map_canvas
+        c.delete("all")
+
+        try:
+            step = max(50.0, round((max(max_x - min_x, max_y - min_y) / 10) / 10.0) * 10.0)
+        except Exception:
+            step = 50.0
+        grid_color = "#f0f0f0"
+        gx_start = int((min_x // step) * step)
+        gy_start = int((min_y // step) * step)
+        for gx in range(gx_start, int(max_x + step), int(step)):
+            x0, y0 = self._world_to_canvas(gx, min_y, bounds)
+            x1, y1 = self._world_to_canvas(gx, max_y, bounds)
+            c.create_line(x0, y0, x1, y1, fill=grid_color)
+        for gy in range(gy_start, int(max_y + step), int(step)):
+            x0, y0 = self._world_to_canvas(min_x, gy, bounds)
+            x1, y1 = self._world_to_canvas(max_x, gy, bounds)
+            c.create_line(x0, y0, x1, y1, fill=grid_color)
+
+        idx = {n["id"]: n for n in nodes}
+        for e in edges:
+            a = idx.get(e.get("from")); b = idx.get(e.get("to"))
+            if not a or not b:
+                continue
+            x0, y0 = self._world_to_canvas(a["x"], a["y"], bounds)
+            x1, y1 = self._world_to_canvas(b["x"], b["y"], bounds)
+            c.create_line(x0, y0, x1, y1, fill="#cccccc", width=2)
+
+        radius = 5
+        target_id = None
+        try:
+            target_id = current_target_node_id
+        except Exception:
+            target_id = None
+        for n in nodes:
+            x, y = self._world_to_canvas(n["x"], n["y"], bounds)
+            fill = "#2b6cb0"
+            outline = "#1a365d"
+            if origin_mode.get("type") == "node" and origin_mode.get("node", {}).get("id") == n["id"]:
+                fill = "#38a169"
+                outline = "#22543d"
+            if target_id and n["id"] == target_id:
+                fill = "#e53e3e"
+                outline = "#742a2a"
+            c.create_oval(x - radius, y - radius, x + radius, y + radius, fill=fill, outline=outline, width=2)
+            try:
+                c.create_text(x + 10, y - 10, text=f"{n['id']}:{n['name']}", anchor=tk.W, fill="#444444", font=("Arial", 8))
+            except Exception:
+                pass
+
+        rx_cm, ry_cm, rth_deg = current_pose[0], current_pose[1], current_pose[2]
+        rx, ry = self._world_to_canvas(rx_cm, ry_cm, bounds)
+        import math as _math
+        ang = _math.radians(-rth_deg)
+        L = 14.0
+        W = 10.0
+        p_front = (rx + L * _math.cos(ang), ry + L * _math.sin(ang))
+        p_left = (rx + -L * 0.5 * _math.cos(ang) + W * _math.cos(ang + _math.pi / 2),
+                  ry + -L * 0.5 * _math.sin(ang) + W * _math.sin(ang + _math.pi / 2))
+        p_right = (rx + -L * 0.5 * _math.cos(ang) + W * _math.cos(ang - _math.pi / 2),
+                   ry + -L * 0.5 * _math.sin(ang) + W * _math.sin(ang - _math.pi / 2))
+        c.create_polygon(p_front[0], p_front[1], p_left[0], p_left[1], p_right[0], p_right[1],
+                         fill="#3182ce", outline="#1a365d", width=2)
+        c.create_text(10, 10, text=f"Pose: x={rx_cm:.1f} y={ry_cm:.1f} θ={rth_deg:.1f}°",
+                      anchor=tk.NW, fill="#222222", font=("Arial", 9, "bold"))
 
     def log_message(self, message: str):
         self.log_text.insert(tk.END, f"{message}\n")
@@ -297,14 +405,16 @@ class NavigationGUI:
     def cmd_go_to_node(self):
         node_id = simpledialog.askstring("Navegación", "ID del nodo destino:")
         if node_id:
-            self.log_message(f"Navegando a nodo {node_id}")
-            cmdq.put({"cmd": "g", "args": [node_id]})
+            mode = self.mode_var.get()
+            self.log_message(f"Navegando a nodo {node_id} (modo: {mode})")
+            cmdq.put({"cmd": "g", "args": [node_id], "mode": mode})
 
     def cmd_go_to_name(self):
         node_name = simpledialog.askstring("Navegación", "Nombre del nodo destino:")
         if node_name:
-            self.log_message(f"Navegando a nodo '{node_name}'")
-            cmdq.put({"cmd": "gn", "args": [node_name]})
+            mode = self.mode_var.get()
+            self.log_message(f"Navegando a nodo '{node_name}' (modo: {mode})")
+            cmdq.put({"cmd": "gn", "args": [node_name], "mode": mode})
 
     def cmd_go_home(self):
         self.log_message("Volviendo a origen (IR Avoid)...")
@@ -413,11 +523,14 @@ async def _start_services():
     print("✔ Servicios iniciados: Safety v2 + Telemetry")
 
 
-async def _navigate_to_nodes(node_ids: List[int]):
+async def _navigate_to_nodes(node_ids: List[int], mode: str = "direct"):
     idx = nodes_index_by_id()
-    nav = IRAvoidNavigator(robot, config, safety=_safety, telemetry=_telemetry)
+    pot_cfg = config.get('potential_nav', {})
+    default_potential = pot_cfg.get('default_type', 'linear')
+    if default_potential not in POTENTIAL_TYPES:
+        default_potential = 'linear'
+    nav_ir = IRAvoidNavigator(robot, config, safety=_safety, telemetry=_telemetry)
 
-    # Respetar configuración de auto-brake (no forzar ON si está deshabilitado)
     try:
         if _safety and config['safety'].get('enable_auto_brake', False):
             _safety.enable(True)
@@ -426,19 +539,44 @@ async def _navigate_to_nodes(node_ids: List[int]):
         pass
 
     for nid in node_ids:
+        global current_target_node_id
+        current_target_node_id = nid
         dest = idx.get(nid)
         if not dest:
             print(f"❌ Nodo {nid} no encontrado.")
+            current_target_node_id = None
             continue
-        print(f"→ Navegación IR hacia nodo {nid}:{dest['name']} @ ({dest['x']:.1f},{dest['y']:.1f})")
+        print(f"→ Navegación ({mode}) hacia nodo {nid}:{dest['name']} @ ({dest['x']:.1f},{dest['y']:.1f})")
         start_pose = await read_pose(robot)
         try:
-            ok, end_pose = await nav.go_to(dest['x'], dest['y'])
+            if mode == "potential":
+                source_node = origin_mode.get("node")
+                if source_node:
+                    q_initial = (
+                        float(source_node['x']),
+                        float(source_node['y']),
+                        float(source_node.get('theta', 0.0)),
+                    )
+                else:
+                    q_initial = (start_pose[0], start_pose[1], start_pose[2])
+                navigator = CombinedPotentialNavigator(
+                    robot,
+                    q_initial=q_initial,
+                    q_goal=(float(dest['x']), float(dest['y'])),
+                    potential_type=default_potential,
+                    telemetry=_telemetry,
+                    safety=_safety,
+                    debug=False,
+                )
+                ok = await navigator.navigate()
+                end_pose = await read_pose(robot)
+            else:
+                ok, end_pose = await nav_ir.go_to(dest['x'], dest['y'])
         except asyncio.CancelledError:
             await robot.set_wheel_speeds(0, 0)
             print("⏹ Navegación cancelada.")
+            current_target_node_id = None
             return
-        # Log intento
         log_nav_attempt(
             target=f"{nid}:{dest['name']}",
             plan_x=dest['x'], plan_y=dest['y'], plan_theta=None,
@@ -449,12 +587,15 @@ async def _navigate_to_nodes(node_ids: List[int]):
         )
         if ok:
             print(f"✔ Llegada a nodo {nid}:{dest['name']}")
+            origin_mode["type"] = "node"
+            origin_mode["node"] = dest
             try:
                 await robot.play_note(659, 0.12)
             except Exception:
                 pass
         else:
             print(f"⚠ No se alcanzó el nodo {nid} en el tiempo límite.")
+        current_target_node_id = None
 
 
 @event(robot.when_play)
@@ -515,7 +656,8 @@ async def main_loop(robot):
                                 await current_nav_task
                             except Exception:
                                 pass
-                        current_nav_task = asyncio.create_task(_navigate_to_nodes(node_ids))
+                        mode = cmd_data.get("mode", "direct")
+                        current_nav_task = asyncio.create_task(_navigate_to_nodes(node_ids, mode=mode))
 
             elif cmd == "gn":
                 if args:
@@ -529,7 +671,8 @@ async def main_loop(robot):
                                 await current_nav_task
                             except Exception:
                                 pass
-                        current_nav_task = asyncio.create_task(_navigate_to_nodes([n['id']]))
+                        mode = cmd_data.get("mode", "direct")
+                        current_nav_task = asyncio.create_task(_navigate_to_nodes([n['id']], mode=mode))
 
             elif cmd == "h":
                 # Ir a origen (0,0) con evasión IR
@@ -644,6 +787,10 @@ def gui_thread():
             else:
                 fg = "orange"; txt = "Safety: Off"
             gui.safety_label.configure(text=txt, foreground=fg)
+        except:
+            pass
+        try:
+            gui.draw_map()
         except:
             pass
         gui.root.after(1000, update_pose)

@@ -296,6 +296,30 @@ $$
 
 ---
 
+## 7. Navegación por Campos de Potencial (PotentialFieldNavigator)
+
+- Integrado en `core/potential_nav.py` usando `core/potential_fields.py`.
+- Selección desde GUI: modo "Potential".
+- Parámetros en `config.yaml` bajo `potential_nav` (ganancias, límites, umbrales, `default_type`).
+- Transformación odometría→mundo basada en `q_i(x,y,theta)` del origen.
+- Feedback:
+  - LED azul: navegación limpia; naranja/cyan: detección/esquiva activa; verde: éxito.
+- Seguridad:
+  - Respeta `SafetyMonitorV2`; bumpers provocan recuperación y abortan tras N colisiones.
+- Telemetría:
+  - `TelemetryLogger.update_command(vl,vr)` en cada iteración.
+
+Flujo rápido de prueba:
+- Establecer origen con "Start Nodo" + "Confirmar".
+- Elegir "Potential" y "Ir a Nodo" → introducir ID de destino.
+- Verificar llegada (pitido) y revisar `nodes/logs/telemetry_*.csv`.
+
+Notas:
+- Ganancias iniciales calibradas; ajustar `potential_nav.k_*` si el entorno cambia.
+- Tolerancia de llegada en `potential_nav.tolerance_cm` (default 10 cm).
+
+---
+
 ## 6.6 Mejoras Implementadas No Documentadas
 
 ### 6.6.1 Filtro IIR para Estabilidad de Sensores

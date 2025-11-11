@@ -71,3 +71,23 @@ avoidance:
   # Detección de atasco
   progress_eps_cm: 2
   progress_dt_s: 5
+
+# Navegación por campos de potencial (atractivo + repulsivo)
+potential_nav:
+  # Ganancias atractivas
+  k_linear: 0.25
+  k_quadratic: 0.05
+  k_conic: 0.15
+  k_exponential: 2.5
+  k_angular: 3.0
+  default_type: linear
+  # Repulsivo
+  k_repulsive: 300.0
+  d_influence_cm: 100.0
+  # Control y límites
+  v_max_cm_s: 38.0
+  tolerance_cm: 10.0
+  control_dt: 0.05
+  # Umbrales para feedback
+  ir_threshold_caution: 90
+  ir_threshold_warning: 180
