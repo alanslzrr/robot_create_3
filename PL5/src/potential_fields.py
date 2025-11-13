@@ -330,7 +330,15 @@ def attractive_wheel_speeds(q, q_goal, k_lin=None, k_ang=None, potential_type='l
     # ========== CALCULAR VELOCIDAD ANGULAR ==========
     # La velocidad angular es proporcional al error angular, permitiendo que
     # el robot corrija su orientación más rápidamente cuando el error es mayor
-    omega = k_ang * angle_error
+    
+    # MEJORA: Reducir ganancia angular para evitar zig-zag en navegación libre
+    # La ganancia K_ANGULAR=3.0 es muy agresiva y causa oscilaciones
+    # Reducimos a la mitad para trayectorias más suaves y rectas
+    # Esto solo afecta navegación sin obstáculos; con obstáculos la ganancia
+    # completa se mantendrá en la función combined_potential_speeds
+    k_ang_smooth = k_ang * 0.5  # Reducir de 3.0 a 1.5 para navegación suave
+    
+    omega = k_ang_smooth * angle_error
     
     # Convertir el límite de velocidad angular de cm/s a rad/s
     # El límite está expresado como diferencia máxima entre ruedas, por lo que
@@ -1411,10 +1419,25 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # de orientación más rápida cuando el error es mayor. Esto es especialmente
     # importante durante evasión de obstáculos cuando necesitamos cambiar dirección rápidamente
     
-    # CRÍTICO: Aumentar ganancia angular cuando hay obstáculos laterales cercanos
-    # Los obstáculos detectados por sensores laterales [0] y [6] requieren giros
-    # más agresivos para evitar colisión con los bordes del robot
-    k_ang_adjusted = k_ang
+    # 🔧 MEJORA CRÍTICA: GANANCIA ANGULAR ADAPTATIVA PARA ELIMINAR ZIG-ZAG
+    # Problema: K_ANGULAR=3.0 causa ZIG-ZAG en navegación libre (sin obstáculos)
+    # Solución: Reducir ganancia cuando NO hay obstáculos significativos detectados
+    # Esto permite trayectorias suaves y rectas en navegación libre, pero mantiene
+    # capacidad de evasión rápida cuando detecta obstáculos reales
+    
+    # Verificar si hay obstáculos REALES (no ruido de sensores)
+    # Umbral más alto que DETECT para filtrar ruido y solo reaccionar a obstáculos reales
+    # Con IR < 50 (normalizado), el obstáculo está a >30cm → navegación libre
+    OBSTACLE_THRESHOLD_FOR_SMOOTH_NAV = 50  # Más estricto que IR_THRESHOLD_DETECT
+    has_significant_obstacles = (max_ir_all >= OBSTACLE_THRESHOLD_FOR_SMOOTH_NAV)
+    
+    if has_significant_obstacles:
+        # HAY OBSTÁCULOS REALES: Usar ganancia completa para evasión rápida
+        k_ang_adjusted = k_ang  # Mantener K_ANGULAR=3.0 completo
+    else:
+        # SIN OBSTÁCULOS O SOLO RUIDO: Reducir ganancia a la mitad para navegación suave
+        # Esto elimina el zig-zag causado por correcciones angulares demasiado agresivas
+        k_ang_adjusted = k_ang * 0.5  # De 3.0 → 1.5 para trayectorias rectas
     
     # ========== MODO ESCAPE: AUMENTAR CAPACIDAD DE GIRO ==========
     # Si estamos atrapados, necesitamos poder girar más rápido para encontrar salida

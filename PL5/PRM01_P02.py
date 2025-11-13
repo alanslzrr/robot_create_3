@@ -547,9 +547,57 @@ class CombinedPotentialNavigator:
                 distance = math.hypot(dx, dy)
                 
                 # VERIFICAR SI ALCANZAMOS EL OBJETIVO ACTUAL
-                # Aumentamos ligeramente la tolerancia porque la odometría tiene drift
-                TOLERANCE_CM = 10.0  # 10 cm de tolerancia para convergencia más fácil
+                # MEJORA: Tolerancia adaptativa según distancia recorrida
+                # - Cerca del inicio: tolerancia estricta (5 cm) - odometría aún precisa
+                # - Lejos del inicio: tolerancia relajada (7 cm) - compensar drift acumulado
+                # Calculamos distancia total recorrida desde inicio
+                dist_from_start = math.hypot(actual_x - self.q_initial[0], 
+                                            actual_y - self.q_initial[1])
+                
+                # Tolerancia adaptativa: 5cm base + 0.2cm por cada metro recorrido
+                # Máximo 8 cm para rutas muy largas
+                TOLERANCE_CM = min(5.0 + (dist_from_start / 100.0) * 0.2, 8.0)
+                
                 if distance < TOLERANCE_CM:
+                    # FASE DE APROXIMACIÓN FINAL: Movimiento ultra-preciso en los últimos centímetros
+                    # Cuando estamos a <5cm, hacer un último ajuste fino
+                    if distance > 2.0:  # Entre 2-5 cm, hacer ajuste fino
+                        print(f"\n🎯 [AJUSTE FINO] Aproximación final...")
+                        
+                        # Calcular dirección exacta al objetivo
+                        final_angle = math.atan2(dy, dx)
+                        final_angle_error = final_angle - math.radians(actual_heading)
+                        while final_angle_error > math.pi:
+                            final_angle_error -= 2.0 * math.pi
+                        while final_angle_error <= -math.pi:
+                            final_angle_error += 2.0 * math.pi
+                        
+                        # Movimiento ultra-lento y directo
+                        # Velocidad proporcional a la distancia restante (1-3 cm/s)
+                        v_final = max(2.0, distance * 0.6)
+                        omega_final = final_angle_error * 0.8  # Corrección suave
+                        
+                        # Convertir a velocidades de rueda
+                        half_base = 11.75  # WHEEL_BASE_CM / 2
+                        v_left_final = v_final - half_base * omega_final
+                        v_right_final = v_final + half_base * omega_final
+                        
+                        # Aplicar por 0.5 segundos
+                        await self.robot.set_wheel_speeds(int(v_left_final), int(v_right_final))
+                        await self.robot.wait(0.5)
+                        await self.robot.set_wheel_speeds(0, 0)
+                        await self.robot.wait(0.2)
+                        
+                        # Re-calcular distancia después del ajuste
+                        pos = await self.robot.get_position()
+                        rotated_x = pos.x * cos_rot - pos.y * sin_rot
+                        rotated_y = pos.x * sin_rot + pos.y * cos_rot
+                        actual_x = rotated_x + self.position_offset_x
+                        actual_y = rotated_y + self.position_offset_y
+                        dx = self.q_goal[0] - actual_x
+                        dy = self.q_goal[1] - actual_y
+                        distance = math.hypot(dx, dy)
+                    
                     # Alcanzamos el objetivo actual
                     current_goal_num = self.current_goal_index + 1
                     total_goals = len(self.all_goals)

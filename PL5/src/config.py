@@ -100,7 +100,8 @@ CONTROL_DT = 0.05
 
 # Tolerancia de distancia para considerar que se alcanzó la meta
 # Si la distancia al objetivo es menor que este valor, la navegación termina
-TOL_DIST_CM = 5.0
+# REDUCIDO: 5.0 → 3.0 para mayor precisión en aproximación final
+TOL_DIST_CM = 3.0
 
 # Tolerancia angular en grados
 # Utilizada para validaciones adicionales de orientación si es necesario
@@ -118,10 +119,12 @@ V_START_MIN_CM_S = 8.0
 
 # Distancia de desaceleración: cuando el robot está a esta distancia del objetivo
 # comienza a reducir velocidad progresivamente (cm)
-DECEL_ZONE_CM = 80.0
+# REDUCIDO: 80.0 → 50.0 para mantener más velocidad hasta más cerca
+DECEL_ZONE_CM = 50.0
 
 # Velocidad mínima en la zona de aproximación final (cm)
-V_APPROACH_MIN_CM_S = 12.0
+# REDUCIDO: 12.0 → 6.0 para aproximación más lenta y precisa
+V_APPROACH_MIN_CM_S = 6.0
 
 # ============ PARÁMETROS DE POTENCIAL ATRACTIVO ============
 # Ganancia angular para corrección de orientación
