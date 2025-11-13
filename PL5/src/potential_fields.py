@@ -240,10 +240,8 @@ def attractive_wheel_speeds(q, q_goal, k_lin=None, k_ang=None, potential_type='l
         
     elif potential_type == 'conic':
         # Función cónica con saturación: F = k * min(d, d_sat) * 2
-        # Saturación a 100 cm significa que cuando el robot está más lejos,
-        # la velocidad se mantiene constante. Solo cuando se acerca comienza a reducir
-        # El factor *2 aumenta la velocidad base para compensar la saturación
-        d_sat = 100.0  # Distancia de saturación en centímetros
+        # Saturación a 100 cm para mantener velocidad constante lejos
+        d_sat = 100.0
         v_linear = k_lin * min(distance, d_sat) * 2.0
         
     elif potential_type == 'exponential':
@@ -1096,7 +1094,8 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # estimadas y clearance disponible, no solo en valores IR crudos
     
     # Analizar obstáculos frontales (sensores centrales y frente-laterales)
-    front_sensor_indices = [2, 3, 4]  # Centro y frente-laterales
+    # Ampliado para incluir intermedios [1] y [5] y reaccionar antes a aproximaciones laterales
+    front_sensor_indices = [1, 2, 3, 4, 5]
     min_clearance_front = float('inf')
     min_distance_front = float('inf')
     
@@ -1251,6 +1250,7 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         elif potential_type == 'quadratic':
             v_base = k_lin_effective * (distance ** 2) / 10.0
         elif potential_type == 'conic':
+            # Restituir velocidad base con saturación a 100cm para estabilidad
             v_base = k_lin_effective * min(distance, 100.0) * 2.0
         elif potential_type == 'exponential':
             v_base = k_lin_effective * (1 - math.exp(-distance / 50.0)) * 20.0
@@ -1305,18 +1305,17 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         combined_y = weight_att * math.sin(desired_angle_att) + weight_rep * math.sin(angle_rep)
         desired_angle = math.atan2(combined_y, combined_x)
         
-        # REDUCCIÓN DE VELOCIDAD MODERADA basada en influencia repulsiva
-        # MEJORADO: Menos agresivo porque ya aplicamos v_max_allowed basado en clearance
-        # Esta reducción adicional es solo para facilitar el giro
+        # REDUCCIÓN DE VELOCIDAD basada en influencia repulsiva
+        # Un poco más pronunciada para evitar avanzar demasiado desalineado
         if weight_rep > 0.7:  # Obstáculo con alta influencia
-            # Reducción moderada para permitir maniobra precisa
-            extra_slowdown = max(0.5, 1.0 - weight_rep * 0.4)
+            # Reducción más fuerte para maniobra precisa
+            extra_slowdown = max(0.4, 1.0 - weight_rep * 0.6)
         elif weight_rep > 0.4:  # Obstáculo con influencia media
-            # Reducción ligera
-            extra_slowdown = max(0.7, 1.0 - weight_rep * 0.3)
+            # Reducción moderada
+            extra_slowdown = max(0.65, 1.0 - weight_rep * 0.4)
         else:  # Obstáculo detectado pero con poca influencia
             # Mínima reducción
-            extra_slowdown = max(0.85, 1.0 - weight_rep * 0.2)
+            extra_slowdown = max(0.85, 1.0 - weight_rep * 0.25)
         
         v_linear = v_base * extra_slowdown
     else:
@@ -1367,15 +1366,14 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     
     # CLAVE: Definir velocidad mínima según distancia a la meta
     if distance > 50.0:
-        # Lejos de la meta: mantener velocidad mínima alta para arcos suaves
-        # Incluso si está apuntando en dirección contraria, debe avanzar
-        min_factor = 0.6  # Mínimo 60% de velocidad calculada
+        # Lejos de la meta: moderar reducción para mantener avance suficiente
+        min_factor = 0.4
     elif distance > 20.0:
-        # Distancia media: permitir más reducción pero mantener avance
-        min_factor = 0.4  # Mínimo 40% de velocidad
+        # Distancia media
+        min_factor = 0.3
     else:
-        # Cerca de la meta: permitir velocidades más bajas para convergencia precisa
-        min_factor = 0.2  # Mínimo 20% de velocidad
+        # Cerca de la meta
+        min_factor = 0.2
     
     # Aplicar el factor con el mínimo garantizado
     if angle_factor < min_factor:
@@ -1426,18 +1424,17 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # capacidad de evasión rápida cuando detecta obstáculos reales
     
     # Verificar si hay obstáculos REALES (no ruido de sensores)
-    # Umbral más alto que DETECT para filtrar ruido y solo reaccionar a obstáculos reales
-    # Con IR < 50 (normalizado), el obstáculo está a >30cm → navegación libre
-    OBSTACLE_THRESHOLD_FOR_SMOOTH_NAV = 50  # Más estricto que IR_THRESHOLD_DETECT
+    # Subir el umbral para considerar “libre” con más frecuencia y suavizar giros
+    OBSTACLE_THRESHOLD_FOR_SMOOTH_NAV = 100  # antes 50
     has_significant_obstacles = (max_ir_all >= OBSTACLE_THRESHOLD_FOR_SMOOTH_NAV)
     
     if has_significant_obstacles:
         # HAY OBSTÁCULOS REALES: Usar ganancia completa para evasión rápida
         k_ang_adjusted = k_ang  # Mantener K_ANGULAR=3.0 completo
     else:
-        # SIN OBSTÁCULOS O SOLO RUIDO: Reducir ganancia a la mitad para navegación suave
-        # Esto elimina el zig-zag causado por correcciones angulares demasiado agresivas
-        k_ang_adjusted = k_ang * 0.5  # De 3.0 → 1.5 para trayectorias rectas
+        # SIN OBSTÁCULOS O SOLO RUIDO: Reducir más la ganancia para navegación recta
+        # Esto elimina todavía más el zig-zag en espacio libre
+        k_ang_adjusted = k_ang * 0.33  # De 3.0 → ~1.0 para trayectorias rectas
     
     # ========== MODO ESCAPE: AUMENTAR CAPACIDAD DE GIRO ==========
     # Si estamos atrapados, necesitamos poder girar más rápido para encontrar salida

@@ -39,3 +39,4 @@ def detect_obstacle(ir_sensors):
 def emergency_stop_needed(bumpers):
     return bumpers[0] or bumpers[1]
 
+

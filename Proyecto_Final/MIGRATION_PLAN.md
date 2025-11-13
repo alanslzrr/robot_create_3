@@ -166,3 +166,4 @@ potential_nav:
 3. Comparar comportamiento con PL4 original
 4. Ajustar parámetros si es necesario según resultados
 
+
