@@ -21,7 +21,7 @@ Asignatura:
     Robots Autónomos
 
 Fecha de Finalización:
-    6 de noviembre de 2025
+    11 de noviembre de 2025
 
 Robot SDK:
     irobot-edu-sdk
@@ -36,37 +36,46 @@ inicial hasta un objetivo, implementando cuatro funciones de potencial diferente
 (lineal, cuadrática, cónica y exponencial) para permitir análisis comparativo
 de sus características de comportamiento.
 
-Este script constituye la primera parte de la práctica evaluada número 4,
+Este script constituye la primera parte de la práctica evaluada número 5,
 enfocada en establecer la base del sistema de navegación antes de incorporar
-evasión de obstáculos en la Parte 02.
+evasión de obstáculos en la Parte 02. Partimos de nuestra PL4 donde desarrollamos
+el sistema base de campos de potencial, y añadimos mejoras para cumplir los
+objetivos de las Actividades 01 y 02.
 
 ===============================================================================
 OBJETIVOS ESPECÍFICOS
 ===============================================================================
 
-1. Implementar un sistema de navegación que calcule velocidades de rueda basadas
-   en campos de potencial atractivo hacia el objetivo, utilizando la cinemática
+**Actividad 01. Objetivos específicos:**
+
+1. Implementar el módulo de percepción y la generación de fuerzas atractivas y
+   repulsivas mediante campos de potencial, calculando velocidades de rueda basadas
+   en campos de potencial atractivo hacia el objetivo utilizando la cinemática
    diferencial del robot
 
 2. Proporcionar cuatro funciones de potencial diferentes (lineal, cuadrática,
    cónica y exponencial) para permitir análisis comparativo de sus características
    de aceleración, convergencia y comportamiento en diferentes distancias
 
-3. Integrar sistemas de seguridad que protejan al robot mediante detección de
+3. Integrar el control reactivo para mantener la estabilidad del movimiento,
+   incluyendo sistemas de seguridad que protejan al robot mediante detección de
    obstáculos con sensores IR y manejo de colisiones físicas mediante bumpers
 
 4. Implementar un sistema de control de velocidad que incluya rampa de aceleración
    progresiva, desaceleración suave cerca del objetivo y saturación dentro de
    límites seguros del hardware
 
-5. Registrar todos los datos de navegación en archivos CSV para análisis posterior
+5. Verificar el desplazamiento del robot en un entorno sin obstáculos y validar
+   el comportamiento del piloto frente a la presencia de obstáculos cercanos
+
+6. Registrar todos los datos de navegación en archivos CSV para análisis posterior
    y comparación entre diferentes funciones de potencial, incluyendo posición,
    velocidades, errores y tipo de potencial utilizado
 
-6. Implementar un sistema robusto de control que funcione a 20 Hz con manejo
+7. Implementar un sistema robusto de control que funcione a 20 Hz con manejo
    adecuado de errores e interrupciones, permitiendo detención segura con Ctrl+C
 
-7. Configurar un sistema de transformación de coordenadas que permita trabajar
+8. Configurar un sistema de transformación de coordenadas que permita trabajar
    en un sistema mundial especificado en points.json, independientemente de la
    orientación inicial del robot
 
@@ -88,8 +97,11 @@ incluyen:
   ejecución para compensar drift de odometría)
 
 El script carga los puntos de navegación desde un archivo JSON ubicado en
-data/points.json, que debe contener las coordenadas del punto inicial (q_i)
-con posición y orientación, y el punto final (q_f) con solo posición.
+data/points.json. Estos puntos provienen originalmente de un archivo Excel
+proporcionado por Pablo, el técnico de laboratorio, que convertimos a formato
+JSON para que sea más accesible y funcione sin librerías externas. El archivo
+debe contener las coordenadas del punto inicial (q_i) con posición y orientación,
+y el punto final (q_f) con solo posición.
 
 El sistema utiliza argumentos de línea de comandos para permitir flexibilidad
 en la ejecución, permitiendo seleccionar el tipo de potencial, el nombre del

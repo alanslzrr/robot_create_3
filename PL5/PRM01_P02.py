@@ -21,11 +21,12 @@ Asignatura:
     Robots Autónomos
 
 Fecha de Finalización:
-    6 de noviembre de 2025
+    11 de noviembre de 2025
 
 Robot SDK:
     irobot-edu-sdk
 
+Para revisar el resto de los archivos consultar el siguiente repo: https://github.com/alanslzrr/robot_create_3/tree/main/PL5
 ===============================================================================
 OBJETIVO GENERAL
 ===============================================================================
@@ -38,36 +39,55 @@ mediante sensores infrarrojos en tiempo real.
 Este script extiende la funcionalidad de la Parte 01 incorporando evasión
 inteligente de obstáculos mediante fuerzas repulsivas calculadas a partir de
 las lecturas de los siete sensores IR del robot, logrando una navegación más
-robusta y segura en entornos con obstáculos.
+robusta y segura en entornos con obstáculos. Partimos de nuestra PL4 donde
+desarrollamos el sistema base de campos de potencial combinados, y añadimos
+navegación topológica mediante waypoints secuenciales para cumplir los objetivos
+de las Actividades 01 y 02.
 
 ===============================================================================
 OBJETIVOS ESPECÍFICOS
 ===============================================================================
 
-1. Implementar un sistema de navegación que combine campos de potencial atractivo
-   y repulsivo para lograr navegación autónoma con evasión de obstáculos
+**Actividad 01 y 02. Objetivos específicos:**
 
-2. Utilizar los sensores infrarrojos del robot para detectar obstáculos en tiempo
+1. Construir un piloto reactivo que siga la carta de navegación definida en el
+   archivo de zonas, implementando navegación secuencial por waypoints (q_i →
+   wp1 → wp2 → ... → q_f) para cumplir con la navegación topológica
+
+2. Diseñar la estructura de datos necesaria para representar la secuencia topológica,
+   utilizando un formato JSON accesible que proviene de la conversión de un archivo
+   Excel proporcionado por Pablo, el técnico de laboratorio
+
+3. Integrar el piloto geométrico con la navegación topológica para recorrer objetivos
+   parciales en orden, combinando campos de potencial atractivo y repulsivo para
+   lograr navegación autónoma con evasión de obstáculos
+
+4. Utilizar los sensores infrarrojos del robot para detectar obstáculos en tiempo
    real y calcular fuerzas repulsivas apropiadas basadas en un modelo físico
 
-3. Convertir las lecturas de sensores IR en posiciones estimadas de obstáculos
+5. Convertir las lecturas de sensores IR en posiciones estimadas de obstáculos
    utilizando un modelo físico basado en la relación inversa al cuadrado y
    compensación por ángulo del sensor
 
-4. Combinar vectorialmente las fuerzas atractivas y repulsivas para generar una
+6. Combinar vectorialmente las fuerzas atractivas y repulsivas para generar una
    dirección de movimiento resultante que evite colisiones manteniendo el objetivo
-   de llegar a la meta
+   de llegar a cada waypoint en secuencia
 
-5. Implementar un sistema de control de velocidad dinámico que ajuste la velocidad
+7. Validar el recorrido del robot en un entorno sin obstáculos y posteriormente
+   con obstáculos añadidos por el técnico, verificando que el sistema completa
+   todas las zonas de interés de forma segura
+
+8. Implementar un sistema de control de velocidad dinámico que ajuste la velocidad
    máxima permitida según la proximidad de obstáculos detectados, garantizando
    tiempo suficiente de reacción y frenado
 
-6. Detectar espacios navegables (gaps) entre obstáculos para permitir que el robot
+9. Detectar espacios navegables (gaps) entre obstáculos para permitir que el robot
    pase por pasillos estrechos sin detenerse innecesariamente
 
-7. Mantener la capacidad de análisis comparativo registrando datos adicionales
-   sobre fuerzas repulsivas, obstáculos detectados y niveles de seguridad en
-   archivos CSV para análisis posterior
+10. Documentar el programa PRM02_PA.py conforme a los requisitos de entrega,
+    manteniendo la capacidad de análisis comparativo registrando datos adicionales
+    sobre fuerzas repulsivas, obstáculos detectados y niveles de seguridad en
+    archivos CSV para análisis posterior
 
 ===============================================================================
 CONFIGURACIÓN
@@ -86,10 +106,12 @@ configurables incluyen:
   proximidad de obstáculos (emergencia, crítico, advertencia, precaución)
 
 El script utiliza los mismos archivos de configuración y puntos de navegación
-que la Parte 01 (data/points.json), pero ahora también acepta argumentos de
-línea de comandos para ajustar los parámetros del potencial repulsivo,
-permitiendo experimentar con diferentes configuraciones según las características
-del entorno.
+que la Parte 01 (data/points.json). Los puntos provienen originalmente de un
+archivo Excel proporcionado por Pablo, el técnico de laboratorio, que convertimos
+a formato JSON para que sea más accesible y funcione sin librerías externas. El
+script ahora también acepta argumentos de línea de comandos para ajustar los
+parámetros del potencial repulsivo, permitiendo experimentar con diferentes
+configuraciones según las características del entorno.
 
 ===============================================================================
 DIFERENCIAS CON LA PARTE 01
@@ -146,11 +168,15 @@ def load_points(filename):
     
     Esta función lee el archivo JSON que contiene las coordenadas del punto
     inicial (q_i), puntos intermedios (waypoints) y el punto final (q_f).
-    Realizamos validaciones exhaustivas para asegurar que el archivo existe,
-    tiene formato JSON válido, y contiene la estructura esperada.
+    Los puntos provienen originalmente de un archivo Excel proporcionado por
+    Pablo, el técnico de laboratorio, que convertimos a formato JSON para
+    facilitar su uso. Realizamos validaciones exhaustivas para asegurar que
+    el archivo existe, tiene formato JSON válido, y contiene la estructura esperada.
     
     La función ahora retorna también los waypoints intermedios para permitir
-    navegación secuencial: q_i → wp1 → wp2 → ... → q_f
+    navegación secuencial: q_i → wp1 → wp2 → ... → q_f. Esta funcionalidad
+    permite cumplir con los objetivos de navegación topológica de la Actividad 02,
+    donde el robot debe recorrer secuencias de zonas de interés de forma segura.
     
     Args:
         filename: Ruta al archivo JSON con los puntos de navegación

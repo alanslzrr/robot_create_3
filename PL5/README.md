@@ -25,6 +25,7 @@
 - [**Características Avanzadas**](#características-avanzadas) — Escape de trampas y transformaciones
 - [**Configuración y Uso**](#configuración-y-uso) — Cómo ejecutar el sistema
 - [**Análisis de Resultados**](#salida-y-análisis) — Herramientas de evaluación y visualización
+- [**Análisis Detallado de Logs**](#análisis-detallado-de-logs-y-visualización-avanzada) — Insights críticos de visualizaciones avanzadas
 - [**Parámetros del Sistema**](#parámetros-principales) — Valores calibrados y constantes
 - [**Conclusiones**](#resultados-y-conclusiones) — Resumen de logros
 
@@ -32,16 +33,24 @@
 
 ## Introducción
 
-Este proyecto implementa un sistema completo de navegación autónoma para el robot iRobot Create 3 utilizando campos de potencial. El objetivo principal es lograr que el robot navegue desde una posición inicial hasta una posición final, **visitando múltiples waypoints intermedios en orden**, primero usando únicamente un campo de potencial atractivo, y posteriormente combinando este campo atractivo con un campo repulsivo para evitar obstáculos detectados por los sensores infrarrojos.
+Este proyecto implementa un sistema completo de navegación autónoma para el robot iRobot Create 3 utilizando campos de potencial. Partimos de nuestra **Práctica 4 (PL4)**, donde desarrollamos la base del sistema de navegación con campos de potencial atractivo y repulsivo, y añadimos nuevas funcionalidades para cumplir los objetivos de las **Actividades 01 y 02**.
 
-### Nuevas Características (Noviembre 2025)
+### Mejoras respecto a PL4
 
-- **Navegación Secuencial por Waypoints** - El robot ahora visita múltiples puntos intermedios en orden: `q_i → wp1 → wp2 → ... → q_f`
-- **Configuración Visual de Rutas** - Herramienta gráfica interactiva para definir rutas completas con múltiples puntos
-- **Feedback Progresivo** - Sonidos únicos y mensajes informativos al alcanzar cada waypoint
-- **Melodía de Victoria** - Al completar todos los waypoints con éxito
+En esta práctica (PL5), extendimos el sistema de PL4 con las siguientes mejoras:
+
+- **Navegación Secuencial por Waypoints** - El robot ahora visita múltiples puntos intermedios en orden: `q_i → wp1 → wp2 → ... → q_f`, permitiendo navegación topológica mediante una carta de navegación con zonas de interés
+- **Configuración Visual de Rutas** - Herramienta gráfica interactiva (`visual_point_config.py`) para definir rutas completas con múltiples puntos de forma intuitiva
+- **Feedback Progresivo** - Sonidos únicos y mensajes informativos al alcanzar cada waypoint, proporcionando confirmación visual y auditiva del progreso
+- **Melodía de Victoria** - Al completar todos los waypoints con éxito, el robot reproduce una melodía de confirmación
+- **Tolerancia Adaptativa** - Sistema de tolerancia que se ajusta según la distancia recorrida para compensar el drift de odometría en rutas largas
+- **Ajuste Fino en Aproximación Final** - Movimiento ultra-preciso en los últimos centímetros antes de alcanzar cada objetivo
 
 El proyecto se desarrolló en dos partes principales, cada una implementada en un script separado que permite probar diferentes funciones de potencial y analizar su comportamiento comparativo. La estructura del código está organizada en módulos reutilizables que facilitan el mantenimiento y la extensión del sistema.
+
+### Origen de los Puntos de Navegación
+
+Los puntos de navegación que utilizamos provienen de un archivo Excel proporcionado por **Pablo, el técnico de laboratorio**. Convertimos estos datos a formato JSON (`data/points.json`) para que sea más accesible y funcione sin librerías externas para abrir el archivo. Este formato JSON permite editar los puntos manualmente si es necesario y facilita la integración con nuestros scripts de navegación.
 
 ## Estructura del Proyecto
 
@@ -85,7 +94,7 @@ q_i (inicio) → wp1 → wp2 → wp3 → ... → wpN → q_f (final)
 
 ### Configuración Visual de Waypoints
 
-Utilizamos el configurador visual interactivo para definir rutas completas con múltiples puntos:
+Los puntos de navegación provienen originalmente de un archivo Excel proporcionado por Pablo, el técnico de laboratorio. Convertimos estos datos a formato JSON para facilitar su uso. Además, desarrollamos un configurador visual interactivo para definir rutas completas con múltiples puntos:
 
 ```bash
 python utils/visual_point_config.py
@@ -205,7 +214,7 @@ El script integra varios módulos del sistema:
 - **sensor_logger.py**: Monitorea el estado de los sensores durante la ejecución
 - **velocity_logger.py**: Registra todos los datos de navegación en archivos CSV
 
-Para ejecutar este script necesitamos primero configurar los puntos de navegación usando `point_manager.py`, que genera el archivo `points.json` en la carpeta `data`. Este archivo contiene:
+Para ejecutar este script necesitamos primero configurar los puntos de navegación. Los puntos provienen de un archivo Excel proporcionado por Pablo, el técnico de laboratorio, que convertimos a formato JSON (`data/points.json`) para facilitar su uso. También podemos usar `point_manager.py` o el configurador visual `visual_point_config.py` para modificar los puntos. Este archivo contiene:
 - **q_i**: Posición inicial con coordenadas $(x, y)$ en centímetros y orientación $\theta$ en grados (donde $0°$ apunta hacia el eje positivo $X$, y los ángulos crecen en sentido antihorario)
 - **q_f**: Posición final con coordenadas $(x, y)$ del objetivo
 
@@ -834,15 +843,15 @@ Esto permite que el robot funcione correctamente sin importar cómo esté orient
 
 ### Configuración de Puntos de Navegación
 
-Antes de ejecutar cualquiera de los scripts principales, necesitamos configurar los puntos de navegación:
+Los puntos de navegación provienen de un archivo Excel proporcionado por Pablo, el técnico de laboratorio, que convertimos a formato JSON (`data/points.json`) para que sea más accesible y funcione sin librerías externas. Este archivo contiene las zonas de interés definidas en la carta de navegación topológica.
 
-```bash
-python utils/point_manager.py
-```
+Si necesitamos modificar los puntos, tenemos varias opciones:
 
-Este script permite controlar el robot manualmente mediante teclado y marcar las posiciones inicial y final usando los botones físicos del robot. Genera el archivo `points.json` en la carpeta `data`.
+1. **Editar manualmente el archivo JSON** (`data/points.json`) - La forma más directa
+2. **Usar el configurador visual** (`utils/visual_point_config.py`) - Interfaz gráfica interactiva
+3. **Usar el configurador manual** (`utils/point_manager.py`) - Control del robot mediante teclado
 
-También podemos editar manualmente el archivo JSON para modificar los valores sin necesidad de ejecutar el script nuevamente.
+El formato JSON es simple y permite definir el punto inicial (`q_i`), múltiples waypoints intermedios (`waypoints`), y el punto final (`q_f`).
 
 ### Ejecución de la Parte 01
 
@@ -1000,6 +1009,115 @@ Este script genera tres gráficos:
 3. Tabla comparativa visual de los diferentes niveles de seguridad
 
 Las imágenes generadas se guardan en la carpeta `images`.
+
+### Análisis Detallado de Logs y Visualización Avanzada
+
+Adicionalmente, cuando trabajamos con nuestros archivos de logs, vimos necesario manejar los datos de manera precisa para extraer insights valiosos sobre el comportamiento del robot. Teniendo estos datos estructurados, pudimos crear visualizaciones avanzadas que nos permitieron analizar críticamente el desempeño del sistema de navegación.
+
+Para este análisis, desarrollamos una herramienta completa (`utils/analyze_logs.py`) que genera dashboards interactivos con múltiples gráficos que muestran diferentes aspectos de la navegación. Esta herramienta permite:
+
+- Análisis individual de archivos CSV con métricas detalladas
+- Comparación entre múltiples ejecuciones
+- Visualización de trayectorias con múltiples codificaciones de color
+- Generación de mapas comparando rutas planificadas vs reales
+- Exportación de gráficos de alta calidad para documentación
+
+#### Ejecución de Validación: `velocities_quadratic_combined_20251113_173725.csv`
+
+La ejecución documentada en este análisis corresponde a nuestro **última prueba exitosa** que cumplió con todos los objetivos planteados tanto en la **Actividad 01** (navegación con potencial atractivo) como en la **Actividad 02** (navegación con campos de potencial combinados y waypoints). Esta ejecución utilizó la función de potencial **cuadrática** y demostró el funcionamiento completo del sistema integrado.
+
+**Métricas Principales de la Ejecución:**
+- **Tiempo total:** 202.58 segundos (3.38 minutos)
+- **Distancia inicial:** 169.71 cm
+- **Distancia final:** 6.01 cm (precisión excelente)
+- **Distancia recorrida:** 1260.34 cm
+- **Eficiencia de trayectoria:** 13.5%
+- **Velocidad promedio:** 6.55 cm/s
+- **Velocidad máxima:** 24.50 cm/s
+- **Error angular final:** 0.35° (muy bajo)
+- **Obstáculos detectados:** 71 iteraciones (17% del tiempo)
+
+#### Dashboard Completo de Navegación (Figure 1)
+
+![Dashboard Completo de Navegación](images/Figure_1.png)
+
+**Análisis de la Figura 1 - Dashboard de 9 Gráficos:**
+
+Esta visualización proporciona una vista panorámica completa del comportamiento del robot durante toda la navegación. Los insights clave que extraemos son:
+
+**Fila Superior - Análisis de Trayectoria:**
+
+1. **Trayectoria Coloreada por Velocidad:** El mapa de colores muestra claramente cómo el robot ajusta su velocidad según las condiciones del entorno. Las zonas en azul oscuro (bajas velocidades) corresponden a momentos de aproximación precisa o corrección de rumbo, mientras que las zonas amarillas (altas velocidades) indican desplazamientos rápidos en espacios abiertos. Esto demuestra que el sistema de control de velocidad adaptativo funciona correctamente, reduciendo la velocidad cuando se requiere precisión.
+
+2. **Trayectoria Coloreada por Tiempo:** La progresión temporal del color (de púrpura oscuro a amarillo claro) permite identificar visualmente las diferentes fases de la navegación. Observamos que la trayectoria inicial (púrpura) muestra un movimiento más directo hacia el objetivo, mientras que las fases intermedias (verde/amarillo) muestran desviaciones significativas, probablemente debido a la evitación de obstáculos o re-planificación de ruta.
+
+3. **Trayectoria con Fuerzas Repulsivas:** Los vectores rojos muestran las fuerzas repulsivas aplicadas en puntos específicos de la trayectoria. Estos vectores aparecen principalmente en las zonas donde el robot se desvía de su ruta directa, confirmando que el sistema de evitación de obstáculos está activo y funcionando. La ausencia de vectores en la parte final de la trayectoria indica que el robot navegó sin obstáculos en la aproximación final.
+
+**Fila Media - Dinámica del Robot:**
+
+4. **Evolución de la Distancia al Objetivo:** Este gráfico revela un comportamiento interesante: la distancia no disminuye de forma monótona, sino que presenta varios picos donde aumenta temporalmente. Estos aumentos (alrededor de 40s, 70s, 100s, 130s, 160s) corresponden a momentos donde el robot se aleja del objetivo para evitar obstáculos, demostrando que el sistema prioriza la seguridad sobre la eficiencia de ruta directa. La convergencia final a 6.01 cm muestra una precisión excelente.
+
+5. **Velocidades del Robot:** La relación entre velocidad lineal (azul) y angular (verde) muestra claramente el comportamiento de navegación. Los picos de velocidad angular coinciden con caídas en velocidad lineal, indicando que el robot reduce su avance para realizar correcciones de orientación. Este comportamiento es esperado y demuestra un control coordinado entre movimiento traslacional y rotacional.
+
+6. **Velocidades de las Ruedas:** La sincronización entre las ruedas izquierda y derecha es evidente durante los desplazamientos rectos, mientras que las divergencias muestran los momentos de giro. La diferencia máxima entre ruedas alcanza valores razonables que no comprometen la estabilidad del robot.
+
+**Fila Inferior - Errores y Fuerzas:**
+
+7. **Error Angular vs Tiempo:** Los picos significativos de error angular (alcanzando más de 150°) seguidos de correcciones bruscas (marcadas con triángulos rojos ▼) muestran que el robot realiza reorientaciones importantes durante la navegación. Estas correcciones son especialmente notables en los primeros 100 segundos, donde el robot ajusta su orientación inicial y navega alrededor de obstáculos. El error final de 0.35° es excepcionalmente bajo, demostrando una precisión angular excelente.
+
+8. **Obstáculos Detectados:** El gráfico muestra dos períodos principales de detección de obstáculos: alrededor de 35-60 segundos (hasta 4 obstáculos simultáneos) y alrededor de 150-165 segundos (hasta 2 obstáculos). Estos períodos coinciden con las desviaciones observadas en la trayectoria y los aumentos temporales en la distancia al objetivo, confirmando que el sistema de detección y evitación funciona correctamente.
+
+9. **Fuerzas Repulsivas:** Las magnitudes de fuerza repulsiva muestran dos picos principales que coinciden con los períodos de detección de obstáculos. El primer pico (alrededor de 35-45 segundos) alcanza valores superiores a 4000 unidades, indicando una reacción fuerte del sistema ante múltiples obstáculos cercanos. El segundo pico (alrededor de 150-160 segundos) es menor pero aún significativo, mostrando que el robot mantiene capacidad de reacción incluso en fases avanzadas de la navegación.
+
+#### Dashboard de Métricas Detalladas (Figure 2)
+
+![Dashboard de Métricas Detalladas](images/Figure_2.png)
+
+**Análisis de la Figura 2 - Dashboard de 6 Gráficos:**
+
+Este dashboard se enfoca en métricas temporales específicas que permiten un análisis más profundo del comportamiento del sistema:
+
+**Fila Superior:**
+
+1. **Evolución de la Distancia al Objetivo con Zonas de Mejora:** Las barras verticales verdes resaltan períodos de alta velocidad de aproximación al objetivo. Observamos que estas zonas están distribuidas a lo largo de toda la navegación, pero son más frecuentes en la primera mitad, cuando el robot está más lejos del objetivo. La línea punteada verde marca la distancia final de 6.01 cm, confirmando que el robot alcanzó el objetivo con alta precisión.
+
+2. **Velocidad Lineal con Estadísticas:** Las líneas de referencia muestran que la velocidad promedio (6.55 cm/s) está significativamente por debajo de la velocidad máxima (24.50 cm/s), indicando que el robot opera principalmente a velocidades moderadas para mantener control y seguridad. Los picos ocasionales a velocidades altas ocurren en espacios abiertos donde es seguro moverse rápidamente.
+
+**Fila Media:**
+
+3. **Error Angular con Marcadores de Corrección:** Los triángulos rojos (▼) marcan correcciones importantes donde el error angular se reduce bruscamente (más de 5 grados). Estas correcciones son más frecuentes en los primeros 100 segundos, cuando el robot está ajustando su orientación inicial y navegando alrededor de obstáculos. El error final de 0.35° demuestra que el sistema logra una orientación casi perfecta al finalizar.
+
+4. **Velocidad Angular:** Los picos de velocidad angular (hasta 0.70 deg/s) son relativamente bajos comparados con la capacidad máxima del robot, lo que indica un movimiento suave y controlado. La velocidad angular promedio de 0.10 deg/s muestra que el robot realiza correcciones graduales en lugar de giros bruscos, lo cual es beneficioso para la estabilidad y precisión.
+
+**Fila Inferior:**
+
+5. **Control de Velocidades de Ruedas:** La diferencia entre las velocidades de las ruedas izquierda y derecha (línea marrón) muestra picos durante los giros, pero estos picos son moderados, indicando que los giros son suaves y controlados. Las velocidades individuales de las ruedas muestran buena sincronización durante desplazamientos rectos, con divergencias controladas durante los giros.
+
+6. **Fuerzas Repulsivas y Obstáculos (Dual Y-axis):** La correlación entre la magnitud de fuerza repulsiva (púrpura) y el número de obstáculos detectados (naranja) es evidente. Los picos de fuerza coinciden exactamente con los períodos de detección de obstáculos, confirmando que el sistema responde proporcionalmente a la cantidad y proximidad de obstáculos. Los valores máximos de fuerza (superiores a 4000 unidades) demuestran que el sistema tiene capacidad suficiente para generar fuerzas repulsivas significativas cuando es necesario.
+
+#### Insights Críticos y Conclusiones del Análisis
+
+Del análisis crítico de estas visualizaciones, extraemos los siguientes insights clave:
+
+1. **Eficiencia vs Seguridad:** La eficiencia de trayectoria del 13.5% puede parecer baja, pero es esperada y deseable en un sistema que prioriza la seguridad. El robot recorre 1260.34 cm para alcanzar un objetivo que está a 169.71 cm de distancia inicial, pero esto incluye múltiples desviaciones para evitar obstáculos. La distancia final de 6.01 cm demuestra que el robot alcanza el objetivo con alta precisión a pesar de las desviaciones.
+
+2. **Comportamiento Adaptativo:** Los gráficos muestran claramente que el robot adapta su comportamiento según las condiciones del entorno. Las reducciones de velocidad coinciden con detecciones de obstáculos, y las correcciones angulares ocurren cuando es necesario ajustar la orientación. Este comportamiento adaptativo es esencial para navegación robusta en entornos dinámicos.
+
+3. **Precisión Final:** El error final de 6.01 cm en distancia y 0.35° en orientación demuestra que el sistema logra una precisión excelente. Esto es especialmente notable considerando que el robot navegó durante más de 3 minutos y recorrió más de 12 metros, enfrentándose a múltiples obstáculos en el proceso.
+
+4. **Sistema de Detección de Obstáculos:** La detección de hasta 4 obstáculos simultáneos y la respuesta proporcional con fuerzas repulsivas muestran que el sistema de seguridad funciona correctamente. Los períodos de detección están bien distribuidos y no muestran falsos positivos significativos.
+
+5. **Control Coordinado:** La coordinación entre velocidad lineal y angular, así como entre las velocidades de las ruedas, demuestra que el sistema de control funciona de manera integrada. Los giros son suaves y controlados, evitando movimientos bruscos que podrían comprometer la estabilidad.
+
+6. **Validación de Objetivos:** Esta ejecución valida que el sistema cumple con todos los objetivos de las prácticas:
+   - ✅ Navegación autónoma desde punto inicial a objetivo final
+   - ✅ Evitación de obstáculos mediante campos de potencial repulsivo
+   - ✅ Navegación secuencial por waypoints (en ejecuciones con múltiples objetivos)
+   - ✅ Precisión final dentro de tolerancias aceptables (< 10 cm)
+   - ✅ Control adaptativo de velocidad según condiciones del entorno
+   - ✅ Sistema de seguridad robusto con detección temprana de obstáculos
+
+Estos análisis demuestran que el sistema implementado es robusto, preciso y capaz de navegar de forma autónoma en entornos con obstáculos, cumpliendo con todos los objetivos planteados en las actividades prácticas.
 
 ## Parámetros Principales
 

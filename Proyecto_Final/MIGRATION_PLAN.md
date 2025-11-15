@@ -167,3 +167,6 @@ potential_nav:
 4. Ajustar parámetros si es necesario según resultados
 
 
+
+
+
