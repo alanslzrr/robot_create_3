@@ -26,6 +26,8 @@ Fecha de Finalización:
 Robot SDK:
     irobot-edu-sdk
 
+Para revisar el resto de los archivos consultar el siguiente repo: https://github.com/alanslzrr/robot_create_3/tree/main/PL4
+
 ===============================================================================
 OBJETIVO GENERAL
 ===============================================================================
