@@ -1,0 +1,51 @@
+{
+  "nombres": [
+    "A Coruña", 
+    "Santiago", 
+    "Padrón",
+    "Vila García de A.",
+    "Pontevedra",
+    "Vigo",
+    "Sanxenxo", 
+    "Poio", 
+    "Forcarei", 
+    "A Estrada", 
+    "Noia",
+    "Carballino", 
+    "Orense", 
+    "Lalin"
+  ],
+  "coordenadas": [
+    { "x": 0.0,  "y": 0.0,  "theta": 0.0, "label": "A Coruña" },
+    { "x": 10.0, "y": 5.0,  "theta": 0.0, "label": "Santiago" },
+    { "x": 15.0, "y": 7.0,  "theta": 0.0, "label": "Padrón" },
+    { "x": 20.0, "y": 6.0,  "theta": 0.0, "label": "Vila García de A." },
+    { "x": 25.0, "y": 5.0,  "theta": 0.0, "label": "Pontevedra" },
+    { "x": 30.0, "y": 3.0,  "theta": 0.0, "label": "Vigo" },
+    { "x": 28.0, "y": 7.0,  "theta": 0.0, "label": "Sanxenxo" },
+    { "x": 26.0, "y": 4.0,  "theta": 0.0, "label": "Poio" },
+    { "x": 22.0, "y": 10.0, "theta": 0.0, "label": "Forcarei" },
+    { "x": 18.0, "y": 12.0, "theta": 0.0, "label": "A Estrada" },
+    { "x": 12.0, "y": 9.0,  "theta": 0.0, "label": "Noia" },
+    { "x": 21.0, "y": 15.0, "theta": 0.0, "label": "Carballino" },
+    { "x": 24.0, "y": 18.0, "theta": 0.0, "label": "Orense" },
+    { "x": 19.0, "y": 14.0, "theta": 0.0, "label": "Lalin" }
+  ],
+  "aristas": [
+    {"from": 0, "to": 1, "weight": 22}, 
+    {"from": 1, "to": 2, "weight": 8},
+    {"from": 1, "to": 9, "weight": 15},
+    {"from": 1, "to": 10, "weight": 20},
+    {"from": 1, "to": 13, "weight": 35},
+    {"from": 2, "to": 3, "weight": 3},
+    {"from": 3, "to": 4, "weight": 15},
+    {"from": 4, "to": 5, "weight": 25},
+    {"from": 4, "to": 7, "weight": 8},
+    {"from": 4, "to": 8, "weight": 17},
+    {"from": 6, "to": 7, "weight": 15},
+    {"from": 8, "to": 9, "weight": 8},
+    {"from": 8, "to": 11, "weight": 15},
+    {"from": 11, "to": 12, "weight": 10},
+    {"from": 12, "to": 13, "weight": 15}
+  ]
+}
