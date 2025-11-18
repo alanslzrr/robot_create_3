@@ -53,25 +53,38 @@ class GrafoDP:
 
     def Muestra_GrafoDP(self):
         """
-        Muestra la información de cada vértice, sus grados y adyacentes.
+        Muestra un resumen legible del grafo en formato tabular.
         """
+        print("\n" + "=" * 80)
+        print("RESUMEN DEL GRAFO (NODOS Y ADYACENCIAS)")
+        print("=" * 80)
+        header = (
+            f"{'ID':<3} {'Ciudad':<22} {'Coord (x,y,θ)':<32} "
+            f"{'Out':>3} {'In':>3}  Adyacentes [peso]"
+        )
+        print(header)
+        print("-" * 80)
+
         for i in range(self.V):
             out_deg = self.Grado_Out(i)
             in_deg = self.Grado_In(i)
 
-            coord_str = ""
             if self.coords and self.coords[i] is not None:
                 c = self.coords[i]
-                coord_str = f" (x={c['x']:.2f}, y={c['y']:.2f}, θ={c['theta']:.2f})"
+                coord_str = f"x={c['x']:.2f}, y={c['y']:.2f}, θ={c['theta']:.2f}"
+            else:
+                coord_str = "-"
+
+            adj_str = ", ".join(
+                f"{self.nombres[edge.to]}({edge.weight:g})" for edge in self.adjList[i]
+            ) or "-"
 
             print(
-                f"VERTICE : {i} {self.nombres[i]}{coord_str}\tGrado de salida : {out_deg}\tGrado de entrada : {in_deg}",
-                end=""
+                f"{i:<3} {self.nombres[i]:<22} {coord_str:<32} "
+                f"{out_deg:>3} {in_deg:>3}  {adj_str}"
             )
-            print(" Adyacentes : ", end="")
-            for edge in self.adjList[i]:
-                print(f"{self.nombres[edge.to]}({edge.weight:g}) ", end="")
-            print()
+
+        print("=" * 80 + "\n")
 
     def Grado_Out(self, n):
         """
@@ -108,7 +121,11 @@ class GrafoDP:
         Visto = [False] * self.V
         Ruta = []
         Peso_T = [0]  # Se comporta como int& en C++
-        print(f"Caminos desde {VO} a {VD}:")
+
+        print(
+            f"Caminos entre {self.nombres[VO]} [{VO}] "
+            f"y {self.nombres[VD]} [{VD}]:"
+        )
         self.Buscar_CaminosAux(VO, VD, Visto, Ruta, Peso_T)
 
     def Buscar_CaminosAux(self, V_Actual, VD, Visto, Ruta, Peso_T):
@@ -125,12 +142,10 @@ class GrafoDP:
         Ruta.append(V_Actual)
 
         if V_Actual == VD:
-            for idx, v in enumerate(Ruta):
-                if idx > 0:
-                    print(" -> ", end="")
-                print(v, end="")
-
-            print(f"\tCosto: {Peso_T[0]:g}")
+            indices_line = " -> ".join(str(v) for v in Ruta)
+            nombres_line = " -> ".join(self.nombres[v] for v in Ruta)
+            print(f"  {nombres_line}")
+            print(f"    Índices: {indices_line} | Costo total: {Peso_T[0]:g}")
         else:
             for e in self.adjList[V_Actual]:
                 if not Visto[e.to]:
@@ -188,15 +203,15 @@ class GrafoDP:
             u = prev[u]
         path.append(u)  # Agregar el nodo origen
 
-        # Mostrar el camino
-        print("Camino más corto usando Dijkstra: ", end="")
-        while path:
-            v = path.pop()
-            print(v, end="")
-            if path:
-                print(" -> ", end="")
-        print()
-        print(f"Costo: {total_cost:g}")
+        ordered = list(reversed(path))
+        nombres_line = " -> ".join(self.nombres[v] for v in ordered)
+        indices_line = " -> ".join(str(v) for v in ordered)
+
+        # Mostrar el camino de forma legible
+        print("Camino más corto usando Dijkstra:")
+        print(f"  {nombres_line}")
+        print(f"  Índices: {indices_line}")
+        print(f"  Costo total: {total_cost:g}")
 
 
     def Camino_Minimo_BFS(self, VO, VD):
@@ -237,14 +252,14 @@ class GrafoDP:
             camino.append(nodo_actual)
             nodo_actual = prev[nodo_actual]
 
-        print("Camino más corto usando BFS modificado: ", end="")
-        while camino:
-            nodo = camino.pop()
-            print(nodo, end="")
-            if camino:
-                print(" -> ", end="")
-        print()
-        print(f"Costo: {dist[VD]:g}")
+        ordered = list(reversed(camino))
+        nombres_line = " -> ".join(self.nombres[n] for n in ordered)
+        indices_line = " -> ".join(str(n) for n in ordered)
+
+        print("Camino más corto usando BFS modificado:")
+        print(f"  {nombres_line}")
+        print(f"  Índices: {indices_line}")
+        print(f"  Costo total: {dist[VD]:g}")
 
 
 
@@ -343,27 +358,38 @@ def main():
         return
 
     # Mostrar el grafo
-    print("**** GRAFO DIRIGIDO PONDERADO ****")
+    print("\n" + "=" * 80)
+    print("GRAFO DIRIGIDO PONDERADO - RED DE CIUDADES")
+    print("=" * 80)
     GND.Muestra_GrafoDP()
-    print()
 
     # Solicitar al usuario los vértices de origen y destino
-    vi = int(input("VÉRTICE DE ORIGEN: "))
-    vf = int(input("VÉRTICE DE DESTINO: "))
+    print("Seleccione vértices por índice según la tabla anterior.")
+    vi = int(input("  Origen [ID]: "))
+    vf = int(input("  Destino [ID]: "))
     print()
 
     # Encontrar y mostrar todos los caminos posibles entre origen y destino
-    print(f"--- CAMINOS ENTRE VÉRTICES [{vi}, {vf}]")
+    print("-" * 80)
+    print(
+        f"CAMINOS ENTRE {GND.nombres[vi]} [{vi}] "
+        f"Y {GND.nombres[vf]} [{vf}]"
+    )
+    print("-" * 80)
     GND.Caminos(vi, vf)
     print()
 
     # Encontrar y mostrar el camino mínimo usando Dijkstra
-    print(f"--- CAMINO MÍNIMO ENTRE VÉRTICES [{vi}, {vf}] - DIJKSTRA")
+    print("-" * 80)
+    print("CAMINO MÍNIMO - DIJKSTRA")
+    print("-" * 80)
     GND.Camino_Minimo_Dijkstra(vi, vf)
     print()
 
     # Encontrar y mostrar el camino mínimo usando BFS modificado
-    print(f"--- CAMINO MÍNIMO ENTRE VÉRTICES [{vi}, {vf}] - BFS MODIFICADO")
+    print("-" * 80)
+    print("CAMINO MÍNIMO - BFS MODIFICADO")
+    print("-" * 80)
     GND.Camino_Minimo_BFS(vi, vf)
 
 
