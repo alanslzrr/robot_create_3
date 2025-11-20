@@ -1,0 +1,193 @@
+{
+  "nombres": [
+    "inicio",
+    "izq_0",
+    "izq_1",
+    "izq_2",
+    "izq_3",
+    "med_0",
+    "med_1",
+    "med_2",
+    "med_3",
+    "dch_0",
+    "dch_1",
+    "dch_2",
+    "dch_3",
+    "sal_0",
+    "inter_izq_med"
+  ],
+  "coordenadas": [
+    {
+      "x": 0.0,
+      "y": 0.0,
+      "theta": 90.0,
+      "label": "inicio"
+    },
+    {
+      "x": 150.0,
+      "y": 240.0,
+      "theta": 0.0,
+      "label": "izq_0"
+    },
+    {
+      "x": 420.0,
+      "y": 240.0,
+      "theta": 0.0,
+      "label": "izq_1"
+    },
+    {
+      "x": 720.0,
+      "y": 240.0,
+      "theta": 0.0,
+      "label": "izq_2"
+    },
+    {
+      "x": 960.0,
+      "y": 240.0,
+      "theta": 0.0,
+      "label": "izq_3"
+    },
+    {
+      "x": 150.0,
+      "y": -30.0,
+      "theta": 0.0,
+      "label": "med_0"
+    },
+    {
+      "x": 420.0,
+      "y": -30.0,
+      "theta": 0.0,
+      "label": "med_1"
+    },
+    {
+      "x": 720.0,
+      "y": -30.0,
+      "theta": 0.0,
+      "label": "med_2"
+    },
+    {
+      "x": 940.0,
+      "y": -30.0,
+      "theta": 0.0,
+      "label": "med_3"
+    },
+    {
+      "x": 150.0,
+      "y": -300.0,
+      "theta": 0.0,
+      "label": "dch_0"
+    },
+    {
+      "x": 420.0,
+      "y": -300.0,
+      "theta": 0.0,
+      "label": "dch_1"
+    },
+    {
+      "x": 720.0,
+      "y": -300.0,
+      "theta": 0.0,
+      "label": "dch_2"
+    },
+    {
+      "x": 960.0,
+      "y": -300.0,
+      "theta": 0.0,
+      "label": "dch_3"
+    },
+    {
+      "x": 390.0,
+      "y": 480.0,
+      "theta": 0.0,
+      "label": "sal_0"
+    },
+    {
+      "x": 930.0,
+      "y": 160.0,
+      "theta": 0.0,
+      "label": "inter_izq_med"
+    }
+  ],
+  "aristas": [
+    {
+      "from": 0,
+      "to": 5,
+      "weight": 153.0
+    },
+    {
+      "from": 1,
+      "to": 5,
+      "weight": 270.0
+    },
+    {
+      "from": 1,
+      "to": 2,
+      "weight": 170.0
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "weight": 300.0
+    },
+    {
+      "from": 3,
+      "to": 4,
+      "weight": 240.0
+    },
+    {
+      "from": 5,
+      "to": 6,
+      "weight": 170.0
+    },
+    {
+      "from": 6,
+      "to": 7,
+      "weight": 300.0
+    },
+    {
+      "from": 7,
+      "to": 8,
+      "weight": 220.0
+    },
+    {
+      "from": 5,
+      "to": 9,
+      "weight": 270.0
+    },
+    {
+      "from": 9,
+      "to": 10,
+      "weight": 170.0
+    },
+    {
+      "from": 10,
+      "to": 11,
+      "weight": 300.0
+    },
+    {
+      "from": 11,
+      "to": 12,
+      "weight": 240.0
+    },
+    {
+      "from": 8,
+      "to": 12,
+      "weight": 270.0
+    },
+    {
+      "from": 2,
+      "to": 13,
+      "weight": 240.0
+    },
+    {
+      "from": 4,
+      "to": 14,
+      "weight": 85.0
+    },
+    {
+      "from": 14,
+      "to": 8,
+      "weight": 190.0
+    }
+  ]
+}

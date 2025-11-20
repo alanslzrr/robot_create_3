@@ -1,0 +1,167 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    DIAGRAMA DE WORKFLOW - SISTEMA DE NAVEGACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  USUARIO EJECUTA: python PRM02_P02_EQUIPO1_grafos.py                     │
+│              --origin-node 0 --dest-node 8                               │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  1. CARGAR GRAFO                                                         │
+│     - Leer grafos/grafo.json                                             │
+│     - Cargar nodos, coordenadas (x,y,theta), aristas con pesos          │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  2. VALIDAR NODOS                                                        │
+│     - Verificar que origen y destino existen                             │
+│     - Verificar que tienen coordenadas definidas                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  3. EJECUTAR DIJKSTRA                                                    │
+│     - Camino_Minimo_Dijkstra(origen, destino)                           │
+│     - Resultado: path_indices = [0, 1, 9, 8]                            │
+│     - Costo total: 48                                                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  4. EXTRAER COORDENADAS DEL CAMINO                                      │
+│     - q_i = coords[0] → (x=0.0, y=-0.026, theta=0.0)                  │
+│     - waypoints = [coords[1], coords[9]] → [(x=4.06, y=9.45), ...]     │
+│     - q_f = coords[8] → (x=22.0, y=10.0)                               │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  5. ESCRIBIR points.json                                                │
+│     - Sobrescribir data/points.json con estructura:                      │
+│       {                                                                  │
+│         "q_i": { "x": ..., "y": ..., "theta": ... },                     │
+│         "waypoints": [ { "x": ..., "y": ... }, ... ],                   │
+│         "q_f": { "x": ..., "y": ... }                                   │
+│       }                                                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  6. CONECTAR ROBOT                                                       │
+│     - Bluetooth: Create3(Bluetooth("C3_UIEC_Grupo1"))                   │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  7. INICIALIZAR NAVEGADOR                                                │
+│     - CombinedPotentialNavigator(robot, q_i, waypoints, q_f)            │
+│     - Reset odometría: reset_navigation()                                │
+│     - Calcular transformación coordenadas: odometría → mundo            │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  8. BUCLE DE NAVEGACIÓN (20 Hz)                                         │
+│     ┌───────────────────────────────────────────────────────────────┐ │
+│     │ A. LEER ESTADO                                                 │ │
+│     │    - Posición odometría (x, y, heading)                        │ │
+│     │    - Sensores IR (7 canales)                                   │ │
+│     │    - Bumpers (colisiones físicas)                              │ │
+│     └───────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│                              ▼                                           │
+│     ┌───────────────────────────────────────────────────────────────┐ │
+│     │ B. TRANSFORMAR COORDENADAS                                     │ │
+│     │    - Rotar: odom → mundo (según heading inicial)              │ │
+│     │    - Trasladar: sumar offset (q_i.x, q_i.y)                  │ │
+│     │    - Resultado: actual_x, actual_y, actual_heading           │ │
+│     └───────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│                              ▼                                           │
+│     ┌───────────────────────────────────────────────────────────────┐ │
+│     │ C. VERIFICAR OBJETIVO                                          │ │
+│     │    - Calcular distancia al q_goal actual                      │ │
+│     │    - ¿distance < TOLERANCE?                                   │ │
+│     └───────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│                    ┌─────────┴─────────┐                                │
+│                    │                    │                                │
+│                    ▼                    ▼                                │
+│     ┌──────────────────────┐  ┌──────────────────────────────────────┐ │
+│     │ SÍ: Alcanzó objetivo│  │ NO: Continuar navegación             │ │
+│     │                      │  │                                      │ │
+│     │ - ¿Es objetivo final?│  │ ┌────────────────────────────────┐  │ │
+│     │   SÍ → ✅ MISIÓN      │  │ │ D. CALCULAR POTENCIAL          │  │ │
+│     │   NO → Siguiente WP  │  │ │    - Atractivo hacia q_goal    │  │ │
+│     └──────────────────────┘  │ │    - Repulsivo de obstáculos IR│  │ │
+│                              │ │    - Combinación vectorial      │  │ │
+│                              │ └────────────────────────────────┘  │ │
+│                              │              │                        │ │
+│                              │              ▼                        │ │
+│                              │ ┌────────────────────────────────┐  │ │
+│                              │ │ E. VERIFICAR COLISIÓN          │  │ │
+│                              │ │    - ¿Bumpers activados?       │  │ │
+│                              │ └────────────────────────────────┘  │ │
+│                              │              │                        │ │
+│                    ┌─────────┴─────────┐                              │ │
+│                    │                   │                              │ │
+│                    ▼                   ▼                              │ │
+│     ┌──────────────────────┐  ┌──────────────────────────────────┐ │ │
+│     │ SÍ: Colisión         │  │ NO: Sin colisión                 │ │ │
+│     │ - collision_count++  │  │ - Saturar velocidades            │ │ │
+│     │ - ¿>= 5 colisiones?  │  │ - Actualizar LED (azul/naranja)  │ │ │
+│     │   SÍ → ❌ ABORTAR     │  │ - Registrar datos en CSV         │ │ │
+│     │   NO → Retroceder    │  │ - Enviar comandos a ruedas        │ │ │
+│     └──────────────────────┘  └──────────────────────────────────┘ │ │
+│                              │                                        │ │
+│                              └──────────────┬───────────────────────┘ │
+│                                             │                          │
+│                                             ▼                          │
+│                              ┌───────────────────────────────────────┐ │
+│                              │ F. ESPERAR CONTROL_DT (50ms)         │ │
+│                              │    Mantener frecuencia 20 Hz          │ │
+│                              └───────────────────────────────────────┘ │
+│                                             │                          │
+│                                             └──────────┐              │
+│                                                        │              │
+│                                                        ▼              │
+│                                              [VOLVER A PASO A]        │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  9. RESULTADO FINAL                                                      │
+│     ✅ ÉXITO: Todos los waypoints visitados, robot en q_f              │
+│     ❌ FALLO: Colisiones excesivas o error en navegación               │
+└─────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                              FLUJO DE DATOS
+═══════════════════════════════════════════════════════════════════════════════
+
+grafo.json (fuente única)
+    │
+    ├─→ Dijkstra → camino [0,1,9,8]
+    │
+    └─→ Coordenadas → q_i, waypoints, q_f
+            │
+            └─→ points.json (reescrito)
+                    │
+                    └─→ CombinedPotentialNavigator
+                            │
+                            └─→ Robot físico (movimiento)
+
+═══════════════════════════════════════════════════════════════════════════════
+                              ESTADOS DEL ROBOT
+═══════════════════════════════════════════════════════════════════════════════
+
+🟢 VERDE    → Inicio / Misión completada
+🔵 AZUL     → Navegando sin obstáculos
+🟠 NARANJA  → Obstáculo detectado (primer aviso + beep)
+🔵 CYAN     → Esquivando activamente (maniobra en curso)
+
+═══════════════════════════════════════════════════════════════════════════════
+
