@@ -838,7 +838,7 @@ def find_best_free_direction(ir_sensors, current_heading_deg, goal_angle_deg):
     return best_direction, min_freedom, should_slow
 
 
-def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
+def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None, distance_to_goal=None):
     """
     Calcula la fuerza repulsiva que aleja al robot de obstáculos detectados.
     
@@ -846,9 +846,10 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
     ángulo de sensor y calcula fuerzas basadas en CLEARANCE (distancia libre
     después de restar el radio del robot), no solo distancia absoluta.
     
-    Esto permite que el robot se acerque más a obstáculos cuando es seguro,
-    mejorando la eficiencia en espacios confinados, pero reacciona fuertemente
-    cuando el clearance es insuficiente para maniobrar.
+    NUEVA FUNCIONALIDAD: Prioridad de objetivo sobre obstáculo.
+    Si el waypoint/nodo está MÁS CERCA que un obstáculo detectado, la fuerza
+    repulsiva de ese obstáculo se reduce significativamente para permitir que
+    el robot alcance el nodo. Esto resuelve el problema de nodos cerca de paredes.
     
     Args:
         q: Tupla (x, y, theta_deg) con posición y orientación actual del robot
@@ -856,6 +857,7 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
         k_rep: Ganancia repulsiva (usa config.K_REPULSIVE si None)
         d_influence: Distancia de influencia repulsiva (usa config.D_INFLUENCE si None)
         gaps: Lista de gaps navegables detectados (para reducir fuerza en gaps)
+        distance_to_goal: Distancia al waypoint/nodo objetivo en cm (para priorización)
     
     Returns:
         tuple: Tupla (fx, fy) con las componentes X e Y de la fuerza repulsiva total
@@ -889,6 +891,23 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
         # Estimar distancia al obstáculo con compensación de ángulo
         d_obstacle = ir_value_to_distance(ir_value, sensor_index=i)
         
+        # ========== PRIORIDAD DE OBJETIVO SOBRE OBSTÁCULO ==========
+        # Si el nodo/waypoint está MÁS CERCA que el obstáculo, reducir significativamente
+        # la fuerza repulsiva de este obstáculo para permitir que el robot llegue al nodo.
+        # Esto resuelve el problema de nodos cerca de paredes.
+        goal_priority_factor = 1.0  # Sin reducción por defecto
+        
+        if (config.GOAL_PRIORITY_ENABLED and 
+            distance_to_goal is not None and 
+            distance_to_goal > 0):
+            
+            # Comparar: ¿está el objetivo más cerca que el obstáculo?
+            # Usamos un margen configurable para dar flexibilidad
+            if distance_to_goal <= (d_obstacle + config.GOAL_PRIORITY_MARGIN_CM):
+                # El objetivo está más cerca (o casi igual) que el obstáculo
+                # → Reducir drásticamente la fuerza repulsiva de este obstáculo
+                goal_priority_factor = config.GOAL_PRIORITY_FORCE_FACTOR
+        
         # GEOMETRÍA: Calcular CLEARANCE (distancia libre después del radio del robot)
         # Esta es la distancia real disponible para maniobrar
         clearance = d_obstacle - config.ROBOT_RADIUS_CM
@@ -917,6 +936,10 @@ def repulsive_force(q, ir_sensors, k_rep=None, d_influence=None, gaps=None):
             # F = k * (d_safe / clearance)^3 * factor_de_alcance
             factor_alcance = 1.0 - (d_obstacle / d_influence)
             force_magnitude = k_rep * math.pow(d_safe / clearance, 3.0) * factor_alcance
+        
+        # ========== APLICAR PRIORIDAD DE OBJETIVO ==========
+        # Si el objetivo está más cerca que este obstáculo, reducir su fuerza
+        force_magnitude *= goal_priority_factor
         
         # ========== REDUCIR FUERZA EN GAPS NAVEGABLES ==========
         # Si este sensor forma parte de un gap navegable, reducir la fuerza
@@ -1169,29 +1192,70 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     dy_goal = q_goal[1] - q[1]
     distance = math.hypot(dx_goal, dy_goal)
     
+    # ========== UMBRALES ADAPTATIVOS PARA APROXIMACIÓN A WAYPOINTS ==========
+    # Cuando estamos cerca del objetivo, reducimos la influencia de obstáculos
+    # para permitir llegar a waypoints que están cerca de paredes
+    approach_factor = 1.0  # Factor de reducción (1.0 = sin reducción)
+    d_influence_effective = d_influence
+    d_influence_factor = 1.0
+    low_speed_factor = 1.0
+    
+    if distance < config.APPROACH_REDUCE_START_CM:
+        # Calcular factor de reducción lineal basado en distancia
+        # Cuando distance = APPROACH_REDUCE_START_CM → factor = 1.0
+        # Cuando distance = APPROACH_REDUCE_END_CM → factor = MIN_FACTOR
+        if distance <= config.APPROACH_REDUCE_END_CM:
+            # Ya estamos en la zona de máxima reducción
+            approach_factor = config.APPROACH_K_REP_MIN_FACTOR
+            d_influence_factor = config.APPROACH_D_INFLUENCE_MIN_FACTOR
+        else:
+            # Interpolación lineal entre los dos puntos
+            range_dist = config.APPROACH_REDUCE_START_CM - config.APPROACH_REDUCE_END_CM
+            progress = (config.APPROACH_REDUCE_START_CM - distance) / range_dist
+            
+            # approach_factor va de 1.0 a APPROACH_K_REP_MIN_FACTOR
+            approach_factor = 1.0 - progress * (1.0 - config.APPROACH_K_REP_MIN_FACTOR)
+            
+            # d_influence_factor va de 1.0 a APPROACH_D_INFLUENCE_MIN_FACTOR
+            d_influence_factor = 1.0 - progress * (1.0 - config.APPROACH_D_INFLUENCE_MIN_FACTOR)
+        
+        # REDUCCIÓN ADICIONAL POR VELOCIDAD BAJA
+        # Cuando el robot va lento (aproximación final), reducir aún más la evasión
+        # Usamos _last_v_linear del ciclo anterior como estimación de velocidad actual
+        if _last_v_linear is not None and _last_v_linear < config.APPROACH_LOW_SPEED_THRESHOLD:
+            low_speed_factor = config.APPROACH_LOW_SPEED_EXTRA_FACTOR
+            # Aplicar factor adicional
+            approach_factor *= low_speed_factor
+            d_influence_factor *= low_speed_factor
+        
+        # Aplicar reducción a d_influence
+        d_influence_effective = d_influence * d_influence_factor
+    
     # ========== MODO ESCAPE DE TRAMPA EN C ==========
     # Si estamos atrapados, reducir la influencia del objetivo para permitir
     # que la fuerza repulsiva domine y encuentre un camino de escape
     k_lin_effective = k_lin
-    k_rep_effective = k_rep
+    k_rep_effective = k_rep * approach_factor  # Aplicar factor de aproximación
     
     # NUEVO: Boost adicional de repulsión si hay obstáculos FRONTALES críticos
     # Esto hace que el robot reaccione MÁS AGRESIVAMENTE ante obstáculos directos
     # USAR VALORES NORMALIZADOS para comparación justa
-    if normalized_ir and len(normalized_ir) >= 7:
+    # NOTA: Solo aplicar boost si NO estamos muy cerca del objetivo (approach_factor > 0.5)
+    if normalized_ir and len(normalized_ir) >= 7 and approach_factor > 0.5:
         # Sensores frontales críticos: 2, 3, 4 (los que apuntan hacia adelante)
         max_frontal = max(normalized_ir[2], normalized_ir[3], normalized_ir[4])
         if max_frontal >= config.IR_THRESHOLD_CRITICAL:
             # Si hay obstáculo frontal crítico, DUPLICAR la fuerza repulsiva
             # REDUCIDO de 3.0x a 2.0x para evitar dominación
-            k_rep_effective = k_rep * 2.0
+            k_rep_effective = k_rep_effective * 2.0
         elif max_frontal >= config.IR_THRESHOLD_WARNING:
             # Si hay obstáculo frontal en advertencia, aumentar 50%
             # REDUCIDO de 2.0x a 1.5x
-            k_rep_effective = k_rep * 1.5
+            k_rep_effective = k_rep_effective * 1.5
     
-    if is_trapped:
+    if is_trapped and approach_factor > 0.5:
         # Reducir atracción hacia el objetivo (permite explorar alternativas)
+        # NOTA: Solo si no estamos muy cerca del objetivo
         k_lin_effective = k_lin * config.TRAP_ATTRACTIVE_REDUCTION
         # Aumentar repulsión adicional (empuja más fuerte lejos de obstáculos)
         # Nota: Se multiplica sobre el k_rep_effective que ya puede estar boosted
@@ -1229,8 +1293,11 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
     # Calcular las componentes de la fuerza repulsiva total sumando las contribuciones
     # de todos los obstáculos detectados por los sensores IR
     # MODIFICADO: Pasar información de gaps para reducir fuerzas en gaps navegables
+    # ADAPTATIVO: Usar d_influence_effective que se reduce cerca del objetivo
+    # NUEVO: Pasar distance_to_goal para priorizar objetivo sobre obstáculos
     fx_rep, fy_rep = repulsive_force(q, ir_sensors, k_rep=k_rep_effective, 
-                                     d_influence=d_influence, gaps=gaps)
+                                     d_influence=d_influence_effective, gaps=gaps,
+                                     distance_to_goal=distance)
     
     # ========== ESTRATEGIA DE EVASIÓN COMBINADA ==========
     # Nuestro enfoque utiliza la velocidad del potencial atractivo como base y ajusta
@@ -1549,7 +1616,14 @@ def combined_potential_speeds(q, q_goal, ir_sensors=None, k_lin=None, k_ang=None
         'num_gaps': len(gaps),
         'navigable_gap_detected': navigable_gap_detected,
         'gap_widths': [gap.get('gap_width', 0) for gap in gaps] if gaps else [],
-        'gap_angles': [gap.get('gap_angle', 0) for gap in gaps] if gaps else []
+        'gap_angles': [gap.get('gap_angle', 0) for gap in gaps] if gaps else [],
+        # Información sobre umbrales adaptativos de aproximación
+        'approach_factor': approach_factor,
+        'd_influence_effective': d_influence_effective,
+        'k_rep_effective': k_rep_effective,
+        # Información sobre prioridad de objetivo
+        'goal_priority_enabled': config.GOAL_PRIORITY_ENABLED,
+        'distance_to_goal': distance
     }
 
     

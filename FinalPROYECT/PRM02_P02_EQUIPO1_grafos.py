@@ -358,7 +358,7 @@ class CombinedPotentialNavigator:
     - Transformación de coordenadas para trabajar en sistema mundial
     """
     
-    def __init__(self, robot, q_initial, waypoints, q_final, potential_type='linear', k_rep=None, d_influence=None, debug=False):
+    def __init__(self, robot, q_initial, waypoints, q_final, potential_type='linear', k_rep=None, d_influence=None, debug=False, disable_logging=False):
         """
         Inicializa el navegador con los parámetros de configuración.
         
@@ -375,6 +375,7 @@ class CombinedPotentialNavigator:
             k_rep: Ganancia repulsiva (usa config.K_REPULSIVE si es None)
             d_influence: Distancia de influencia repulsiva (usa config.D_INFLUENCE si es None)
             debug: Si es True, muestra información detallada cada 10 iteraciones
+            disable_logging: Si es True, deshabilita los loggers (útil para evitar conflictos de event loop en MCP)
         """
         self.robot = robot
         self.q_initial = q_initial  # Guardar posición y orientación inicial
@@ -388,7 +389,14 @@ class CombinedPotentialNavigator:
         self.k_rep = k_rep or config.K_REPULSIVE
         self.d_influence = d_influence or config.D_INFLUENCE
         self.debug = debug
+        self.disable_logging = disable_logging
+        
+        # Crear loggers solo si no están deshabilitados
+        if not disable_logging:
         self.vel_logger = VelocityLogger(f"{potential_type}_combined")
+        else:
+            self.vel_logger = None
+            
         self.running = False
         self.current_led_color = None  # Para rastrear el color actual del LED
         self.obstacle_detected = False  # Para rastrear si ya se detectó obstáculo (para sonido)
@@ -414,17 +422,20 @@ class CombinedPotentialNavigator:
         self.odometry_to_world_rotation = 0.0  # Rotación del sistema de odometría al mundo (radianes)
         self.reset_heading = 0.0  # Heading real del robot al hacer reset (grados)
         
-        # Creamos el SensorLogger con los offsets de posición para que muestre
-        # posiciones corregidas en el sistema mundial. El heading_offset se
-        # calculará después del reset cuando conozcamos el heading real.
+        # Creamos el SensorLogger solo si no está deshabilitado
+        if not disable_logging:
         self.logger = SensorLogger(robot, 
                                    position_offset_x=self.position_offset_x,
                                    position_offset_y=self.position_offset_y,
                                    heading_offset=0)  # Se actualizará después del reset
+        else:
+            self.logger = None
         
         print(f"[INFO] Sistema de coordenadas configurado:")
         print(f"       Posicion inicial deseada: ({self.position_offset_x:.1f}, {self.position_offset_y:.1f}) cm")
         print(f"       Heading inicial deseado: {self.initial_heading:.1f}°")
+        if disable_logging:
+            print(f"       Logging deshabilitado (modo MCP)")
         
     async def navigate(self):
         """
@@ -464,6 +475,19 @@ class CombinedPotentialNavigator:
         # Obtenemos el heading real inicial del robot después del reset
         # Este es el ángulo al que realmente está apuntando el robot físicamente
         pos_initial = await self.robot.get_position()
+        retry_attempts = 0
+        while pos_initial is None and retry_attempts < 10:
+            print("[WARNING] No se pudo leer la posición inicial (get_position=None). Reintentando...", file=sys.stderr)
+            await self.robot.wait(0.2)
+            pos_initial = await self.robot.get_position()
+            retry_attempts += 1
+
+        if pos_initial is None:
+            raise RuntimeError(
+                "No se pudo obtener la posición inicial del robot (get_position retornó None). "
+                "Verifica que el Create3 esté encendido y enlazado por Bluetooth."
+            )
+
         self.reset_heading = pos_initial.heading  # Guardamos para usar en transformaciones
         desired_heading = self.q_initial[2]  # Heading deseado según points.json
         
@@ -480,6 +504,7 @@ class CombinedPotentialNavigator:
         
         # Actualizamos el heading_offset en el logger para que muestre ángulos
         # corregidos en el sistema mundial en lugar del sistema de odometría
+        if self.logger:
         self.logger.heading_offset = self.heading_offset
         
         print(f"[INFO] Configuracion de odometria:")
@@ -501,8 +526,10 @@ class CombinedPotentialNavigator:
         self.current_led_color = 'green'
         await self.robot.wait(1.0)  # Mantener verde 1 segundo antes de empezar
         
-        # Iniciar los sistemas de logging en segundo plano
+        # Iniciar los sistemas de logging en segundo plano (si están habilitados)
+        if self.logger:
         self.logger.start()
+        if self.vel_logger:
         self.vel_logger.start()
         self.running = True
         
@@ -650,7 +677,9 @@ class CombinedPotentialNavigator:
                         await self.robot.play_note(85, 0.2)
                         await self.robot.wait(0.1)
                         await self.robot.play_note(90, 0.3)
+                        if self.logger:
                         self.logger.stop()
+                        if self.vel_logger:
                         self.vel_logger.stop()
                         self.running = False
                         return True
@@ -717,6 +746,7 @@ class CombinedPotentialNavigator:
                 # Registramos los datos de esta iteración en el archivo CSV
                 # Incluimos información adicional sobre fuerzas repulsivas, obstáculos
                 # detectados y nivel de seguridad para análisis posterior
+                if self.vel_logger:
                 self.vel_logger.log(
                     {'x': pos.x, 'y': pos.y, 'theta': pos.heading},
                     distance, v_left, v_right, info
@@ -737,7 +767,9 @@ class CombinedPotentialNavigator:
                     # la misión porque probablemente el camino está completamente bloqueado
                     if collision_count >= MAX_COLLISIONS:
                         print(f"[ERROR] Camino bloqueado - demasiadas colisiones")
+                        if self.logger:
                         self.logger.stop()
+                        if self.vel_logger:
                         self.vel_logger.stop()
                         return False
                     
@@ -824,7 +856,9 @@ class CombinedPotentialNavigator:
             import traceback
             traceback.print_exc()
             await self.robot.set_wheel_speeds(0, 0)
+            if self.logger:
             self.logger.stop()
+            if self.vel_logger:
             self.vel_logger.stop()
             return False
         

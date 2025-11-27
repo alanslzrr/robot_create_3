@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navegación Autónoma | UIE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Paleta de Colores UIE Basada en imágenes */
+            --u-teal-dark: #005f6b;      /* Títulos oscuros */
+            --u-teal-light: #008c99;     /* Acentos */
+            --u-blue-action: #4a90e2;    /* Botones (Me apunto) */
+            --u-blue-hover: #357abd;
+            --u-dark-bg: #1a1a1a;        /* Footer / Estadísticas */
+            --u-grey-bg: #f4f4f4;        /* Fondo general */
+            --u-white: #ffffff;
+            --u-text-main: #333333;
+            --u-text-light: #666666;
+            --u-danger: #d32f2f;
+            
+            --font-heading: 'Montserrat', sans-serif;
+            --font-body: 'Open Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-body);
+            background-color: var(--u-grey-bg);
+            color: var(--u-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER ESTILO ACADÉMICO */
+        header {
+            background-color: var(--u-white);
+            padding: 1.5rem 5%;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand-logo {
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 1.8rem;
+            color: var(--u-dark-bg);
+            letter-spacing: -1px;
+        }
+
+        .brand-subtitle {
+            border-left: 2px solid var(--u-teal-light);
+            padding-left: 1rem;
+            font-size: 0.9rem;
+            color: var(--u-text-light);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* LAYOUT PRINCIPAL */
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* TARJETAS GENERALES */
+        .card {
+            background: var(--u-white);
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02); /* Sombra muy sutil */
+            margin-bottom: 2rem;
+            border: 1px solid #eee;
+        }
+
+        h2 {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            color: var(--u-teal-dark);
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        h2::after {
+            content: '';
+            display: block;
+            width: 40px;
+            height: 3px;
+            background-color: var(--u-blue-action);
+            margin-top: 0.5rem;
+        }
+
+        /* PANEL IZQUIERDO: CONTROLES */
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Estado */
+        #status {
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 1rem;
+            background-color: #e8eaed;
+            color: #5f6368;
+            border-left: 4px solid #ccc;
+            transition: all 0.3s ease;
+        }
+
+        #status.listening {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border-left-color: #2196f3;
+        }
+
+        #status.connected {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border-left-color: #4caf50;
+        }
+
+        /* Botones estilo UIE "Me apunto" */
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+            color: white;
+        }
+
+        .btn-primary {
+            background-color: var(--u-blue-action);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--u-blue-hover);
+        }
+
+        .btn-danger {
+            background-color: var(--u-danger);
+            margin-top: 0.5rem;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Info Navegación (Clean List) */
+        .nav-info {
+            list-style: none;
+            margin-top: 1rem;
+        }
+
+        .nav-info li {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.95rem;
+        }
+
+        .nav-label {
+            color: var(--u-text-light);
+            font-weight: 600;
+        }
+
+        .nav-value {
+            font-family: monospace;
+            color: var(--u-dark-bg);
+            font-weight: 700;
+        }
+
+        /* PANEL DERECHO: DASHBOARD */
+        
+        /* Telemetría Estilo "Estadísticas UIE" */
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background-color: var(--u-dark-bg); /* Fondo oscuro general */
+            color: var(--u-white);
+            margin-bottom: 2rem;
+            padding: 2rem;
+        }
+
+        .telemetry-item {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .telemetry-value {
+            font-family: var(--font-heading);
+            font-size: 3rem; /* Números gigantes */
+            font-weight: 800;
+            line-height: 1;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .telemetry-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+        
+        .telemetry-value.updating {
+            color: var(--u-blue-action); /* Flash azul al actualizar */
+            transition: color 0.2s;
+        }
+
+        /* Transcripción (Chat Clean) */
+        .transcript-container {
+            flex-grow: 1;
+            background-color: #fff;
+            border: 1px solid #eee;
+            height: 400px;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .transcript-empty {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .transcript-item {
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .transcript-sender {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .transcript-content {
+            font-size: 1rem;
+        }
+
+        .user .transcript-sender { color: var(--u-blue-action); }
+        .assistant .transcript-sender { color: var(--u-teal-dark); }
+        .system .transcript-sender { color: #999; }
+        .system .transcript-content { font-size: 0.9rem; color: #666; font-style: italic; }
+
+        /* Consola Logs (Terminal minimalista) */
+        .logs-section {
+            background-color: #111;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 1rem;
+            font-size: 0.8rem;
+            height: 150px;
+            overflow-y: auto;
+            margin-top: 2rem;
+            border-left: 4px solid var(--u-teal-dark);
+        }
+
+        .log-entry { margin-bottom: 4px; opacity: 0.8; }
+        .log-error { color: #ff5252; }
+        .log-success { color: #69f0ae; }
+
+        /* FOOTER */
+        footer {
+            background-color: var(--u-dark-bg);
+            color: var(--u-white);
+            padding: 3rem 5%;
+            margin-top: auto;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .footer-info h4 {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .footer-info p {
+            font-size: 0.9rem;
+            opacity: 0.6;
+        }
+
+        .update-time {
+            text-align: center; 
+            margin-top: 1rem; 
+            font-size: 0.8rem; 
+            opacity: 0.5; 
+            color: white;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="brand-logo">UIE</div>
+            <div class="brand-subtitle">Robots Autónomos</div>
+        </div>
+        <div>
+            </div>
+    </header>
+
+    <div class="container">
+        
+        <aside class="control-section">
+            <div class="card">
+                <h2>Panel de Control</h2>
+                
+                <div id="status">
+                    Sistema en espera
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="startBtn" class="btn btn-primary">
+                        Activar Voz
+                    </button>
+                    <button id="stopBtn" class="btn btn-danger" disabled>
+                        Detener
+                    </button>
+                </div>
+
+                <ul class="nav-info">
+                    <li>
+                        <span class="nav-label">Estado</span>
+                        <span class="nav-value" id="robotState">IDLE</span>
+                    </li>
+                    <li>
+                        <span class="nav-label">Nodo Actual</span>
+                        <span class="nav-value" id="currentNode">-</span>
+                    </li>
+                    <li>
+                        <span class="nav-label">Destino</span>
+                        <span class="nav-value" id="targetNode">-</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card" style="background-color: #f8f9fa; border: none;">
+                <h3 style="font-family: var(--font-heading); font-size: 0.9rem; color: var(--u-text-light); margin-bottom: 1rem;">COMANDOS SUGERIDOS</h3>
+                <p style="font-size: 0.9rem; color: #666; line-height: 1.6;">
+                    "Lista los lugares disponibles"<br>
+                    "Vete al nodo 3 desde el inicio"<br>
+                    "Detente ahora mismo"
+                </p>
+            </div>
+        </aside>
+
+        <main>
+            <section class="telemetry-grid">
+                <div class="telemetry-item">
+                    <span class="telemetry-value" id="posX">0.0</span>
+                    <span class="telemetry-label">Posición X (cm)</span>
+                </div>
+                <div class="telemetry-item">
+                    <span class="telemetry-value" id="posY">0.0</span>
+                    <span class="telemetry-label">Posición Y (cm)</span>
+                </div>
+                <div class="telemetry-item">
+                    <span class="telemetry-value" id="posTheta">0.0°</span>
+                    <span class="telemetry-label">Orientación</span>
+                </div>
+            </section>
+            
+            <div class="update-time">
+                Última sincronización: <span id="lastUpdate">--:--:--</span>
+            </div>
+
+            <div class="card" style="margin-top: 2rem;">
+                <h2>Interacción en Vivo</h2>
+                <div id="transcript" class="transcript-container">
+                    <div class="transcript-empty">
+                        Inicia la sesión para comenzar la comunicación con el robot...
+                    </div>
+                </div>
+            </div>
+
+            <div id="log" class="logs-section">
+                <div class="log-entry">Sistema inicializado. Listo para conectar.</div>
+            </div>
+        </main>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-info">
+                <h4>Ingeniería Robótica</h4>
+                <p>Práctica de Navegación Topológica & Control por Voz</p>
+            </div>
+            <div class="footer-info" style="text-align: right;">
+                <p>Alan Salazar & Yago Ramos</p>
+                <p>Prof. Eladio Dapena</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let ws = null;
+        let openaiWs = null;
+        let mediaRecorder = null;
+        let audioContext = null;
+        let audioProcessor = null;
+        let mediaStream = null;
+        let isConnected = false;
+        
+        // === AUDIO PLAYBACK (para escuchar a OpenAI) ===
+        let playbackContext = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const transcriptDiv = document.getElementById('transcript');
+        const logDiv = document.getElementById('log');
+        
+        // Inicializar contexto de reproducción de audio
+        function initPlaybackContext() {
+            if (!playbackContext) {
+                playbackContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 24000
+                });
+                console.log('[Audio] Contexto de reproducción inicializado');
+            }
+            // Asegurar que el contexto esté activo
+            if (playbackContext.state === 'suspended') {
+                playbackContext.resume();
+            }
+        }
+        
+        // Reproducir audio PCM16 que viene del servidor
+        async function playAudioChunk(pcm16Data) {
+            initPlaybackContext();
+            
+            try {
+                // Convertir ArrayBuffer a Int16Array
+                const int16Array = new Int16Array(pcm16Data);
+                
+                // Convertir Int16 a Float32 para Web Audio API
+                const float32Array = new Float32Array(int16Array.length);
+                for (let i = 0; i < int16Array.length; i++) {
+                    float32Array[i] = int16Array[i] / 32768.0;
+                }
+                
+                // Crear buffer de audio
+                const audioBuffer = playbackContext.createBuffer(1, float32Array.length, 24000);
+                audioBuffer.getChannelData(0).set(float32Array);
+                
+                // Añadir a la cola
+                audioQueue.push(audioBuffer);
+                
+                // Procesar cola si no está reproduciendo
+                if (!isPlaying) {
+                    processAudioQueue();
+                }
+            } catch (error) {
+                console.error('[Audio] Error reproduciendo chunk:', error);
+            }
+        }
+        
+        // Procesar cola de audio de forma secuencial
+        function processAudioQueue() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
+                return;
+            }
+            
+            isPlaying = true;
+            const audioBuffer = audioQueue.shift();
+            
+            const source = playbackContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(playbackContext.destination);
+            
+            source.onended = () => {
+                processAudioQueue();
+            };
+            
+            source.start();
+        }
+        
+        // Limpiar cola de audio
+        function clearAudioQueue() {
+            audioQueue = [];
+            isPlaying = false;
+        }
+        
+        // Función para actualizar el estado visual
+        function updateStatus(message, type = 'disconnected') {
+            // Clases CSS actualizadas para el nuevo diseño
+            statusDiv.className = ''; // Limpiar clases
+            
+            if (type === 'listening') {
+                statusDiv.classList.add('listening');
+                statusDiv.textContent = `Escuchando... ${message}`;
+            } else if (type === 'connected') {
+                statusDiv.classList.add('connected');
+                statusDiv.textContent = `Conectado: ${message}`;
+            } else {
+                statusDiv.textContent = message;
+            }
+        }
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `> ${message}`; // Estilo terminal
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            while (logDiv.children.length > 50) { // Reducido buffer visual
+                logDiv.removeChild(logDiv.firstChild);
+            }
+        }
+        
+        function addTranscript(sender, content) {
+            const emptyMsg = transcriptDiv.querySelector('.transcript-empty');
+            if (emptyMsg) emptyMsg.remove();
+            
+            const item = document.createElement('div');
+            item.className = `transcript-item ${sender}`;
+            
+            const senderDiv = document.createElement('div');
+            senderDiv.className = 'transcript-sender';
+            // Etiquetas más profesionales
+            senderDiv.textContent = sender === 'user' ? 'OPERADOR' : 
+                                   sender === 'assistant' ? 'ASISTENTE IA' : 
+                                   sender === 'tool' ? 'SISTEMA' : 'ALERTA';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'transcript-content';
+            contentDiv.textContent = content;
+            
+            item.appendChild(senderDiv);
+            item.appendChild(contentDiv);
+            transcriptDiv.appendChild(item);
+            transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+        }
+        
+        function updateRobotState(state) {
+            if (state.current_node !== undefined) {
+                document.getElementById('currentNode').textContent = 
+                    state.current_node !== null ? state.current_node : 'N/A';
+            }
+            if (state.target_node !== undefined) {
+                document.getElementById('targetNode').textContent = 
+                    state.target_node !== null ? state.target_node : '-';
+            }
+            if (state.state !== undefined) {
+                document.getElementById('robotState').textContent = state.state;
+            }
+        }
+        
+        function updateTelemetry(data) {
+            if (data.position) {
+                const pos = data.position;
+                
+                const posXEl = document.getElementById('posX');
+                const posYEl = document.getElementById('posY');
+                const posThetaEl = document.getElementById('posTheta');
+                
+                // Formato limpio sin unidades dentro del número
+                posXEl.textContent = pos.x.toFixed(1);
+                posYEl.textContent = pos.y.toFixed(1);
+                posThetaEl.textContent = pos.theta.toFixed(1) + '°';
+                
+                [posXEl, posYEl, posThetaEl].forEach(el => {
+                    el.classList.add('updating');
+                    setTimeout(() => el.classList.remove('updating'), 200);
+                });
+                
+                const now = new Date();
+                document.getElementById('lastUpdate').textContent = 
+                    now.toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+            
+            if (data.state || data.current_node !== undefined || data.target_node !== undefined) {
+                updateRobotState({
+                    state: data.state,
+                    current_node: data.current_node,
+                    target_node: data.target_node
+                });
+            }
+        }
+        
+        // --- LOGICA DE CONEXION ---
+        startBtn.onclick = async function() {
+            try {
+                // Inicializar contexto de audio al hacer clic (requerido por navegadores)
+                initPlaybackContext();
+                
+                updateStatus('Estableciendo conexión...', 'connecting');
+                addLog('Iniciando handshake con servidor bridge...', 'info');
+                
+                ws = new WebSocket('ws://localhost:8000/ws');
+                
+                ws.onopen = async () => {
+                    updateStatus('Solicitando audio...', 'connecting');
+                    addLog('WebSocket conectado.', 'success');
+                    
+                    try {
+                        mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                            audio: {
+                                channelCount: 1,
+                                sampleRate: 24000,
+                                echoCancellation: true,
+                                noiseSuppression: true
+                            }
+                        });
+                        
+                        addLog('Dispositivo de audio autorizado.', 'success');
+                        updateStatus('En línea', 'listening');
+                        
+                        startBtn.disabled = true;
+                        stopBtn.disabled = false;
+                        isConnected = true;
+                        
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                            sampleRate: 24000
+                        });
+                        
+                        const source = audioContext.createMediaStreamSource(mediaStream);
+                        const bufferSize = 4096;
+                        audioProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+                        
+                        audioProcessor.onaudioprocess = (e) => {
+                            if (!isConnected || ws.readyState !== WebSocket.OPEN) return;
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const pcm16 = new Int16Array(inputData.length);
+                            for (let i = 0; i < inputData.length; i++) {
+                                const s = Math.max(-1, Math.min(1, inputData[i]));
+                                pcm16[i] = Math.round(s * 32767);
+                            }
+                            ws.send(pcm16.buffer);
+                        };
+                        
+                        source.connect(audioProcessor);
+                        audioProcessor.connect(audioContext.destination);
+                        
+                    } catch (error) {
+                        addLog(`Fallo en micrófono: ${error.message}`, 'error');
+                        updateStatus('Error de Micrófono', 'disconnected');
+                        if (ws) ws.close();
+                    }
+                };
+                
+                ws.onmessage = async (event) => {
+                    // Detectar si es audio binario o mensaje JSON
+                    if (event.data instanceof Blob) {
+                        // Es audio binario de OpenAI - reproducirlo
+                        try {
+                            const arrayBuffer = await event.data.arrayBuffer();
+                            playAudioChunk(arrayBuffer);
+                        } catch (error) {
+                            console.error('[Audio] Error procesando blob:', error);
+                        }
+                        return;
+                    }
+                    
+                    if (event.data instanceof ArrayBuffer) {
+                        // También puede llegar como ArrayBuffer directamente
+                        playAudioChunk(event.data);
+                        return;
+                    }
+                    
+                    // Es un mensaje JSON
+                    try {
+                        const data = JSON.parse(event.data);
+                        switch(data.type) {
+                            case 'log': addLog(data.message, data.level || 'info'); break;
+                            case 'transcript': addTranscript(data.sender, data.content); break;
+                            case 'robot_state': updateRobotState(data.state); break;
+                            case 'telemetry': updateTelemetry(data); break;
+                            case 'mission_event': 
+                                if (data.event === 'mission_completed') {
+                                    addTranscript('system', `Misión Finalizada: ${data.message}`);
+                                    addLog(`Llegada a destino confirmada`, 'success');
+                                }
+                                break;
+                            case 'status': updateStatus(data.message, data.status); break;
+                            case 'error': 
+                                addLog(`ERR: ${data.message}`, 'error');
+                                addTranscript('system', `Error Crítico: ${data.message}`);
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('Error parseando mensaje:', error);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    addLog('Error en WebSocket', 'error');
+                    updateStatus('Error de Red', 'disconnected');
+                };
+                
+                ws.onclose = () => {
+                    addLog('Sesión finalizada', 'info');
+                    updateStatus('Desconectado', 'disconnected');
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    isConnected = false;
+                    
+                    // Limpiar captura de audio
+                    if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
+                    if (audioContext) { audioContext.close(); audioContext = null; }
+                    if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
+                    
+                    // Limpiar reproducción de audio
+                    clearAudioQueue();
+                    if (playbackContext) { playbackContext.close(); playbackContext = null; }
+                };
+                
+            } catch (error) {
+                addLog(`Excepción: ${error.message}`, 'error');
+            }
+        };
+        
+        stopBtn.onclick = function() {
+            isConnected = false;
+            
+            // Limpiar captura de audio
+            if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
+            
+            // Limpiar reproducción de audio
+            clearAudioQueue();
+            if (playbackContext) { playbackContext.close(); playbackContext = null; }
+            
+            if (ws) { ws.close(); }
+            
+            updateStatus('Desconectado', 'disconnected');
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+    </script>
+</body>
+</html>

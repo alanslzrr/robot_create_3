@@ -14,7 +14,23 @@
     "dch_2",
     "dch_3",
     "sal_0",
-    "inter_izq_med"
+    "inter_izq_med",
+    "impresora_3d",
+    "mesa_profesor",
+    "puerta",
+    "ascensor",
+    "puerta_escaleras",
+    "baños",
+    "medio_pasillo",
+    "puerta_cambio_ala",
+    "pantalla",
+    "cambio_ala_real",
+    "pasillo_1",
+    "aula_307",
+    "aula_305",
+    "entr_caf_2",
+    "aula_304",
+    "fin_pasillo"
   ],
   "coordenadas": [
     {
@@ -24,13 +40,13 @@
       "label": "inicio"
     },
     {
-      "x": 150.0,
-      "y": 240.0,
+      "x": 145.0,
+      "y": 230.0,
       "theta": 0.0,
       "label": "izq_0"
     },
     {
-      "x": 420.0,
+      "x": 395.0,
       "y": 240.0,
       "theta": 0.0,
       "label": "izq_1"
@@ -106,6 +122,102 @@
       "y": 160.0,
       "theta": 0.0,
       "label": "inter_izq_med"
+    },
+    {
+      "x": 540.0,
+      "y": -330.0,
+      "theta": 0.0,
+      "label": "Nodo 15"
+    },
+    {
+      "x": 120.0,
+      "y": 120.0,
+      "theta": 0.0,
+      "label": "Nodo 16"
+    },
+    {
+      "x": 415.0,
+      "y": 420.0,
+      "theta": 0.0,
+      "label": "Nodo 17"
+    },
+    {
+      "x": 300.0,
+      "y": 540.0,
+      "theta": 0.0,
+      "label": "Nodo 18"
+    },
+    {
+      "x": 420.0,
+      "y": 660.0,
+      "theta": 0.0,
+      "label": "Nodo 19"
+    },
+    {
+      "x": 60.0,
+      "y": 700.0,
+      "theta": 0.0,
+      "label": "Nodo 20"
+    },
+    {
+      "x": 300.0,
+      "y": 720.0,
+      "theta": 0.0,
+      "label": "Nodo 21"
+    },
+    {
+      "x": 245.0,
+      "y": 960.0,
+      "theta": 0.0,
+      "label": "Nodo 22"
+    },
+    {
+      "x": 0.0,
+      "y": -240.0,
+      "theta": 0.0,
+      "label": "Nodo 23"
+    },
+    {
+      "x": 260.0,
+      "y": 1020.0,
+      "theta": 0.0,
+      "label": "Nodo 24"
+    },
+    {
+      "x": 194.0,
+      "y": 1171.0,
+      "theta": 0.0,
+      "label": "Nodo 25"
+    },
+    {
+      "x": -27.1,
+      "y": 1680.28,
+      "theta": 0.0,
+      "label": "aula_307"
+    },
+    {
+      "x": -481.67,
+      "y": 2725.73,
+      "theta": 0.0,
+      "label": "aula_305"
+    },
+    {
+      "x": -1091.76,
+      "y": 4128.83,
+      "theta": 0.0,
+      "label": "entr_caf_2"
+    },
+    {
+      "x": -1809.51,
+      "y": 5779.54,
+      "theta": 0.0,
+      "label": "aula_304"
+    },
+    {
+      "x": -2575.11,
+      "y": 7540.3,
+      "theta": 0.0,
+      "label": "fin_pasillo"
     }
   ],
   "aristas": [
@@ -188,6 +300,91 @@
       "from": 14,
       "to": 8,
       "weight": 190.0
+    },
+    {
+      "from": 10,
+      "to": 15,
+      "weight": 124.0
+    },
+    {
+      "from": 11,
+      "to": 15,
+      "weight": 182.0
+    },
+    {
+      "from": 5,
+      "to": 16,
+      "weight": 153.0
+    },
+    {
+      "from": 1,
+      "to": 16,
+      "weight": 124.0
+    },
+    {
+      "from": 2,
+      "to": 17,
+      "weight": 180.0
+    },
+    {
+      "from": 13,
+      "to": 17,
+      "weight": 65.0
+    },
+    {
+      "from": 13,
+      "to": 18,
+      "weight": 108.0
+    },
+    {
+      "from": 13,
+      "to": 19,
+      "weight": 182.0
+    },
+    {
+      "from": 13,
+      "to": 21,
+      "weight": 256.0
+    },
+    {
+      "from": 18,
+      "to": 19,
+      "weight": 170.0
+    },
+    {
+      "from": 18,
+      "to": 21,
+      "weight": 180.0
+    },
+    {
+      "from": 19,
+      "to": 21,
+      "weight": 134.0
+    },
+    {
+      "from": 19,
+      "to": 21,
+      "weight": 134.0
+    },
+    {
+      "from": 20,
+      "to": 21,
+      "weight": 240.0
+    },
+    {
+      "from": 21,
+      "to": 22,
+      "weight": 246.0
+    },
+    {
+      "from": 5,
+      "to": 23,
+      "weight": 258.0
+    },
+    {
+      "from": 9,
+      "to": 23,
+      "weight": 162.0
     }
   ]
 }

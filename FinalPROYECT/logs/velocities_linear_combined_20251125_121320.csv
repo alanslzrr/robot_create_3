@@ -1,0 +1,4 @@
+timestamp,elapsed_s,x_cm,y_cm,theta_deg,distance_cm,v_left,v_right,v_linear,omega,angle_error_deg,fx_repulsive,fy_repulsive,num_obstacles,potential_type
+2025-11-25 12:13:21.875,0.169,0.00,0.00,89.90,270.00,8.00,8.00,8.00,0.000,0.00,0.00,0.00,0,linear
+2025-11-25 12:13:22.282,0.576,0.00,0.00,89.90,270.00,4.00,12.00,8.00,0.340,162.75,-27.64,7.02,1,linear
+2025-11-25 12:13:22.593,0.887,0.00,2.10,89.30,267.90,7.88,8.12,8.00,0.010,0.60,0.00,0.00,0,linear

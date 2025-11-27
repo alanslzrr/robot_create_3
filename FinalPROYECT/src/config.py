@@ -426,6 +426,70 @@ IR_DISTANCE_CONSTANT = 158.0
 IR_MIN_DISTANCE_CM = 4.0    # Distancia mínima estimable (muy cerca)
 IR_MAX_DISTANCE_CM = 60.0   # Distancia máxima estimable (señal débil)
 
+# ============ UMBRALES ADAPTATIVOS PARA APROXIMACIÓN A WAYPOINTS ============
+# Estos parámetros permiten que el robot llegue a waypoints que están cerca de
+# paredes u obstáculos, reduciendo la influencia de la evasión cuando está
+# muy cerca del objetivo.
+#
+# IMPORTANTE: Los sensores IR dan valores MÁS ALTOS cuando el obstáculo está MÁS CERCA
+# Ejemplo: pared a 5cm → IR ~1000, pared a 30cm → IR ~60
+#
+# Caso de uso: waypoint a 5cm de una pared
+# - Sin adaptación: el robot detecta pared (IR alto) y evade, nunca llega al waypoint
+# - Con adaptación: cerca del waypoint, se reduce/ignora la evasión para poder llegar
+
+# ============ PRIORIDAD DE OBJETIVO SOBRE OBSTÁCULO ============
+# NUEVA FUNCIONALIDAD: Compara la distancia al nodo vs distancia al obstáculo
+# Si el nodo está MÁS CERCA que el obstáculo, el robot prioriza llegar al nodo
+# reduciendo o eliminando la fuerza repulsiva de ese obstáculo específico.
+#
+# Ejemplo: nodo a 15cm, pared a 20cm → robot ignora la pared y llega al nodo
+# Ejemplo: nodo a 25cm, pared a 10cm → robot mantiene evasión normal (pared más cerca)
+
+# Habilitar comparación distancia-al-nodo vs distancia-al-obstáculo
+GOAL_PRIORITY_ENABLED = True
+
+# Margen de seguridad en cm para la comparación
+# Si distance_to_goal <= distance_to_obstacle + margen → priorizar objetivo
+# Un margen pequeño (3-5cm) permite llegar a nodos cerca de paredes
+# Un margen de 0 significa comparación exacta
+GOAL_PRIORITY_MARGIN_CM = 5.0
+
+# Factor de reducción de fuerza repulsiva cuando el objetivo está más cerca
+# 0.0 = eliminar completamente la fuerza (más agresivo, llega más fácil)
+# 0.1 = reducir al 10% (conservador, algo de evasión residual)
+# 0.05 = reducir al 5% (equilibrado)
+GOAL_PRIORITY_FORCE_FACTOR = 0.05
+
+# Distancia al objetivo a partir de la cual se empieza a reducir la evasión (cm)
+# Cuando el robot está más cerca que esta distancia, comienza a reducir k_rep y d_influence
+APPROACH_REDUCE_START_CM = 25.0
+
+# Distancia al objetivo en la cual la reducción es máxima (cm)
+# A esta distancia y menor, los parámetros de evasión están al mínimo permitido
+# IMPORTANTE: Debe ser similar o menor a la tolerancia de llegada (TOL_DIST_CM = 3cm)
+APPROACH_REDUCE_END_CM = 8.0
+
+# Factor mínimo de reducción para k_rep cuando está muy cerca del objetivo
+# 0.1 significa que la fuerza repulsiva se reduce al 10% - casi ignorando obstáculos
+# Esto permite llegar a waypoints que están literalmente contra paredes
+APPROACH_K_REP_MIN_FACTOR = 0.1
+
+# Factor mínimo de reducción para d_influence cuando está muy cerca del objetivo
+# 0.2 significa que la distancia de influencia se reduce al 20% (de 100cm a 20cm)
+# Solo obstáculos MUY cercanos generarán fuerza repulsiva
+APPROACH_D_INFLUENCE_MIN_FACTOR = 0.2
+
+# Umbral de velocidad para reducción adicional (cm/s)
+# Cuando la velocidad es menor que este valor, se aplica reducción adicional
+# Esto permite aproximación más precisa en velocidades bajas
+APPROACH_LOW_SPEED_THRESHOLD = 12.0
+
+# Factor adicional de reducción cuando la velocidad es baja
+# Se multiplica con los otros factores para reducción aún mayor
+# Con 0.5, la fuerza repulsiva puede llegar a ser solo 5% del original (0.1 * 0.5)
+APPROACH_LOW_SPEED_EXTRA_FACTOR = 0.5
+
 # ============ DETECCIÓN DE GAPS (PASILLOS) NAVEGABLES ============
 # Parámetros para detectar espacios entre obstáculos por donde el robot puede pasar
 
