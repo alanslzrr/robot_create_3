@@ -393,7 +393,7 @@ class CombinedPotentialNavigator:
         
         # Crear loggers solo si no están deshabilitados
         if not disable_logging:
-        self.vel_logger = VelocityLogger(f"{potential_type}_combined")
+            self.vel_logger = VelocityLogger(f"{potential_type}_combined")
         else:
             self.vel_logger = None
             
@@ -424,7 +424,7 @@ class CombinedPotentialNavigator:
         
         # Creamos el SensorLogger solo si no está deshabilitado
         if not disable_logging:
-        self.logger = SensorLogger(robot, 
+            self.logger = SensorLogger(robot, 
                                    position_offset_x=self.position_offset_x,
                                    position_offset_y=self.position_offset_y,
                                    heading_offset=0)  # Se actualizará después del reset
@@ -505,7 +505,7 @@ class CombinedPotentialNavigator:
         # Actualizamos el heading_offset en el logger para que muestre ángulos
         # corregidos en el sistema mundial en lugar del sistema de odometría
         if self.logger:
-        self.logger.heading_offset = self.heading_offset
+            self.logger.heading_offset = self.heading_offset
         
         print(f"[INFO] Configuracion de odometria:")
         print(f"       Posicion inicial deseada (points.json): ({self.q_initial[0]:.1f}, {self.q_initial[1]:.1f}, {desired_heading:.1f}°)")
@@ -528,9 +528,9 @@ class CombinedPotentialNavigator:
         
         # Iniciar los sistemas de logging en segundo plano (si están habilitados)
         if self.logger:
-        self.logger.start()
+            self.logger.start()
         if self.vel_logger:
-        self.vel_logger.start()
+            self.vel_logger.start()
         self.running = True
         
         # Variables para control de iteraciones y colisiones
@@ -678,9 +678,9 @@ class CombinedPotentialNavigator:
                         await self.robot.wait(0.1)
                         await self.robot.play_note(90, 0.3)
                         if self.logger:
-                        self.logger.stop()
+                            self.logger.stop()
                         if self.vel_logger:
-                        self.vel_logger.stop()
+                            self.vel_logger.stop()
                         self.running = False
                         return True
                     else:
@@ -747,7 +747,7 @@ class CombinedPotentialNavigator:
                 # Incluimos información adicional sobre fuerzas repulsivas, obstáculos
                 # detectados y nivel de seguridad para análisis posterior
                 if self.vel_logger:
-                self.vel_logger.log(
+                    self.vel_logger.log(
                     {'x': pos.x, 'y': pos.y, 'theta': pos.heading},
                     distance, v_left, v_right, info
                 )
@@ -768,9 +768,9 @@ class CombinedPotentialNavigator:
                     if collision_count >= MAX_COLLISIONS:
                         print(f"[ERROR] Camino bloqueado - demasiadas colisiones")
                         if self.logger:
-                        self.logger.stop()
+                            self.logger.stop()
                         if self.vel_logger:
-                        self.vel_logger.stop()
+                            self.vel_logger.stop()
                         return False
                     
                     # Estrategia de recuperación: retrocedemos un poco después de una
@@ -857,9 +857,9 @@ class CombinedPotentialNavigator:
             traceback.print_exc()
             await self.robot.set_wheel_speeds(0, 0)
             if self.logger:
-            self.logger.stop()
+                self.logger.stop()
             if self.vel_logger:
-            self.vel_logger.stop()
+                self.vel_logger.stop()
             return False
         
         return False

@@ -73,7 +73,7 @@ def get_system_instructions(node_list: Optional[str] = None) -> str:
     Genera las instrucciones del sistema para OpenAI, incluyendo opcionalmente
     la lista de nodos disponibles para reducir alucinaciones.
     """
-    base_instructions = """Eres un asistente robótico que controla un iRobot Create 3 mediante navegación topológica.
+    base_instructions = """Eres un asistente  que controla un iRobot Create 3 mediante navegación topológica.
 
 Tienes acceso a herramientas MCP para controlar el robot. Las herramientas disponibles son:
 
@@ -107,14 +107,13 @@ REGLAS CRÍTICAS PARA NAVEGACIÓN:
 Otras instrucciones:
 - SIEMPRE usa los IDs numéricos exactos de los nodos
 - Sé conciso en tus respuestas por voz - esto es una interfaz de audio
-- Si el usuario dice "para" o "detente", llama inmediatamente a emergency_stop()
 
 Ejemplos de uso CORRECTO:
 - Usuario: "Llévame del nodo 0 al 5" → navigate_robot(destination_id=5, origin_id=0)
 - Usuario: "Ve al nodo 3" → PRIMERO get_robot_status(), luego navigate_robot(destination_id=3, origin_id=<current_node>)
 - Usuario: "Ahora ve al nodo 2" (después de otra navegación) → get_robot_status() para obtener current_node, luego navigate_robot
-- Usuario: "¡Para!" → emergency_stop()
 
+Contesta con un tono natural y cordial.
 Recuerda: SIEMPRE verifica el nodo actual antes de navegar si el usuario no lo especifica."""
     
     return base_instructions
@@ -361,6 +360,8 @@ class BridgeSession:
                                 "type": "input_audio_buffer.append",
                                 "audio": audio_base64
                             }))
+                        else:
+                            print(f"[Audio] OpenAI WS cerrado, no se puede enviar audio", file=sys.stderr)
                     except WebSocketDisconnect:
                         print(f"[Audio] Cliente WebSocket desconectado", file=sys.stderr)
                         break
@@ -411,16 +412,25 @@ class BridgeSession:
                         elif event_type == "response.done":
                             async with self._response_lock:
                                 self.response_in_progress = False
-                            print(f"[OpenAI] Respuesta completada", file=sys.stderr)
+                            # Detalles de la respuesta para debug
+                            response_obj = event.get("response", {})
+                            output_items = response_obj.get("output", [])
+                            status = response_obj.get("status", "unknown")
+                            print(f"[OpenAI] Respuesta completada - status={status}, outputs={len(output_items)}", file=sys.stderr)
+                            for item in output_items:
+                                item_type = item.get("type", "?")
+                                print(f"[OpenAI]   - Output: type={item_type}", file=sys.stderr)
                         
                         # === AUDIO DE RESPUESTA ===
                         elif event_type == "response.audio.delta":
                             audio_delta = event.get("delta", "")
                             if audio_delta:
                                 try:
-                                    await self.client_ws.send_bytes(base64.b64decode(audio_delta))
-                                except:
-                                    pass
+                                    audio_bytes = base64.b64decode(audio_delta)
+                                    print(f"[OpenAI] Audio delta recibido: {len(audio_bytes)} bytes", file=sys.stderr)
+                                    await self.client_ws.send_bytes(audio_bytes)
+                                except Exception as e:
+                                    print(f"[OpenAI] Error enviando audio: {e}", file=sys.stderr)
                         
                         # === TRANSCRIPCIÓN DEL ASISTENTE ===
                         elif event_type == "response.audio_transcript.done":
@@ -443,7 +453,11 @@ class BridgeSession:
                         
                         # === ERRORES ===
                         elif event_type == "error":
-                            error_msg = event.get("error", {}).get("message", "Error desconocido")
+                            error_obj = event.get("error", {})
+                            error_msg = error_obj.get("message", "Error desconocido")
+                            error_type = error_obj.get("type", "unknown")
+                            error_code = error_obj.get("code", "none")
+                            print(f"[OpenAI] ERROR: type={error_type}, code={error_code}, msg={error_msg}", file=sys.stderr)
                             # Ignorar errores de "response in progress" silenciosamente
                             if "active response in progress" not in error_msg:
                                 try:
@@ -460,6 +474,14 @@ class BridgeSession:
                                 await self.log(f"Sesión OpenAI: {event_type}", "info")
                             except:
                                 pass
+                        
+                        # === EVENTOS DE VOZ (VAD) ===
+                        elif event_type == "input_audio_buffer.speech_started":
+                            print(f"[OpenAI] 🎤 Voz detectada - comenzando grabación", file=sys.stderr)
+                        elif event_type == "input_audio_buffer.speech_stopped":
+                            print(f"[OpenAI] 🎤 Voz terminada - procesando...", file=sys.stderr)
+                        elif event_type == "input_audio_buffer.committed":
+                            print(f"[OpenAI] 🎤 Audio enviado para transcripción", file=sys.stderr)
                                 
                     except json.JSONDecodeError:
                         pass

@@ -213,7 +213,6 @@ if __name__ == "__main__":
     print(f"Messages Endpoint: http://{MCP_HOST}:{MCP_PORT}/messages", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
     
-    # CRÍTICO: Inicializar controlador en hilo principal ANTES de iniciar servidor
     # Esto permite que signal.signal() funcione correctamente
     try:
         initialize_controller()

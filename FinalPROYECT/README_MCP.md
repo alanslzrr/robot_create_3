@@ -101,8 +101,8 @@ Servidor MCP que expone las capacidades del robot como herramientas estándar MC
 
 - `PRM02_P02_EQUIPO1_grafos.py`: Clase `CombinedPotentialNavigator` (líneas 330-831) con navegación reactiva usando campos de potencial combinados
 - `grafos/prueba.py`: Carga de grafo desde JSON, algoritmo de Dijkstra, estructura de datos del grafo
-- `src/config.py`: Parámetros calibrados experimentalmente (K_REPULSIVE=300.0, D_INFLUENCE=100.0, GOAL_PRIORITY_*, etc.)
-- `src/potential_fields.py`: Cálculo de fuerzas atractivas y repulsivas con prioridad de objetivo
+- `src/config.py`: Parámetros calibrados experimentalmente (K_REPULSIVE=300.0, D_INFLUENCE=100.0, etc.)
+- `src/potential_fields.py`: Cálculo de fuerzas atractivas y repulsivas
 
 ## Flujo de Datos Completo
 
@@ -709,16 +709,15 @@ Campos de potencial combinados implementados en `CombinedPotentialNavigator`:
   - Clearance insuficiente (<20cm): `F = k_rep * ((1/clearance) - (1/d_safe))²`
   - Clearance suficiente: `F = k_rep * (d_safe/clearance)³ * factor_alcance`
 
-**Problema Identificado (RESUELTO):** En espacios reducidos, los nodos pueden estar cerca de paredes (ej: nodo a 25cm, pared a 29cm). El umbral anterior hacía que el robot evitara la pared y no pudiera llegar al nodo.
+**Problema Identificado:** En espacios reducidos, los nodos pueden estar cerca de paredes (ej: nodo a 25cm, pared a 29cm). El umbral actual hace que el robot evite la pared y no pueda llegar al nodo.
 
-**Solución Implementada: Prioridad de Objetivo sobre Obstáculo**
-- **Comparación directa:** Para cada obstáculo detectado, se compara su distancia con la distancia al nodo
-- **Lógica:** Si `distance_to_goal <= distance_to_obstacle + margen` → Reducir fuerza repulsiva al 5%
-- **Parámetros configurables en `config.py`:**
-  - `GOAL_PRIORITY_ENABLED = True` - Habilitar/deshabilitar la funcionalidad
-  - `GOAL_PRIORITY_MARGIN_CM = 5.0` - Margen de tolerancia para la comparación
-  - `GOAL_PRIORITY_FORCE_FACTOR = 0.05` - Factor de reducción (5% de la fuerza original)
-- **Resultado:** El robot ahora llega a nodos cerca de paredes sin evitarlas innecesariamente
+**Solución Propuesta (Pendiente de Implementación):**
+- Umbrales adaptativos según proximidad al waypoint:
+  - Si `distance_to_goal < 30cm` y `velocity < 10 cm/s`: Reducir `D_INFLUENCE` y `IR_THRESHOLD_DETECT`
+  - Esto permite acercarse más a obstáculos cuando está cerca del destino
+- Ajuste según velocidad:
+  - Velocidad alta: Mantener umbrales actuales (seguridad)
+  - Velocidad baja: Reducir umbrales (precisión)
 
 #### Control Dinámico de Velocidad
 - **Velocidad máxima:** `V_MAX_CM_S = 38.0 cm/s`
@@ -753,7 +752,6 @@ Todos los parámetros están en `src/config.py` y fueron calibrados experimental
 - **Umbrales de seguridad:** `IR_THRESHOLD_EMERGENCY = 700`, `IR_THRESHOLD_CRITICAL = 350`, etc.
 - **Tolerancia de llegada:** `TOL_DIST_CM = 3.0` base, adaptativa hasta 8cm según distancia recorrida
 - **Período de control:** `CONTROL_DT = 0.05` (20 Hz)
-- **Prioridad de objetivo:** `GOAL_PRIORITY_ENABLED = True`, `GOAL_PRIORITY_MARGIN_CM = 5.0`, `GOAL_PRIORITY_FORCE_FACTOR = 0.05`
 
 ### Integración con MCP
 
@@ -835,53 +833,6 @@ if final_pos is not None:
 ```
 
 **Resultado:** ✅ Navegación consecutiva funciona correctamente con transformación de coordenadas precisa
-
-### ✅ PUNTO CRÍTICO: Nodos Cerca de Paredes (CORREGIDO)
-
-**El Problema Identificado:**
-Cuando un nodo/waypoint está cerca de una pared u obstáculo (ej: nodo a 15cm, pared a 20cm), el robot detectaba la pared y generaba fuerzas repulsivas que le impedían llegar al nodo. El robot "evitaba" el nodo porque la pared estaba detrás de él.
-
-**La Solución Implementada: Prioridad de Objetivo sobre Obstáculo**
-
-En `src/potential_fields.py`, función `repulsive_force()`:
-1. Se añadió parámetro `distance_to_goal` para recibir la distancia al waypoint
-2. Para cada obstáculo detectado, se compara su distancia con la distancia al objetivo
-3. Si el objetivo está más cerca que el obstáculo (+ margen), se reduce la fuerza repulsiva al 5%
-
-**Código relevante:**
-```python
-# En repulsive_force() - para cada sensor/obstáculo:
-if distance_to_goal <= (d_obstacle + GOAL_PRIORITY_MARGIN_CM):
-    # El objetivo está más cerca que el obstáculo
-    # → Reducir fuerza repulsiva para permitir llegar al nodo
-    goal_priority_factor = GOAL_PRIORITY_FORCE_FACTOR  # 0.05 = 5%
-
-force_magnitude *= goal_priority_factor
-```
-
-**Parámetros configurables en `src/config.py`:**
-```python
-# Habilitar comparación distancia-al-nodo vs distancia-al-obstáculo
-GOAL_PRIORITY_ENABLED = True
-
-# Margen de tolerancia: si goal <= obstacle + margen → priorizar objetivo
-GOAL_PRIORITY_MARGIN_CM = 5.0
-
-# Factor de reducción: 0.05 = reducir fuerza repulsiva al 5%
-GOAL_PRIORITY_FORCE_FACTOR = 0.05
-```
-
-**Ejemplo de funcionamiento:**
-- Nodo a 15cm, pared a 20cm
-- Comparación: `15cm <= 20cm + 5cm = 25cm` → **TRUE**
-- Fuerza repulsiva de la pared se reduce al 5%
-- Robot llega al nodo sin problemas
-
-**Ajustes recomendados:**
-- Si el robot aún no llega a nodos cerca de paredes: Aumentar `GOAL_PRIORITY_MARGIN_CM` a 8-10cm
-- Si el robot colisiona con obstáculos: Reducir `GOAL_PRIORITY_MARGIN_CM` a 3cm o `GOAL_PRIORITY_FORCE_FACTOR` a 0.1
-
-**Resultado:** ✅ El robot ahora alcanza nodos que están cerca de paredes u obstáculos
 
 ## Revisión Crítica de Arquitectura
 
@@ -1122,10 +1073,10 @@ Archivos nuevos creados:
 - `test_telemetry.py`: 190 líneas (suite de pruebas telemetría)
 - `last_state.json`: Estado persistente
 
-Archivos existentes (con mejoras):
+Archivos existentes (sin modificaciones):
 - `PRM02_P02_EQUIPO1_grafos.py`: 1057 líneas
-- `src/potential_fields.py`: ~1620 líneas (añadida prioridad de objetivo)
-- `src/config.py`: ~525 líneas (añadidos parámetros GOAL_PRIORITY_*)
+- `src/potential_fields.py`: 1557 líneas
+- `src/config.py`: 461 líneas
 - `grafos/prueba.py`: 408 líneas
 
 Total del sistema: ~5800 líneas de código Python/HTML/JS
@@ -1149,7 +1100,6 @@ Cobertura de pruebas:
 - **Logging Deshabilitado:** `disable_logging=True` en modo MCP evita conflictos de asyncio.Lock
 - **Heading Persistente:** `last_heading` guardado en `last_state.json` para navegación consecutiva correcta
 - **Instrucciones Mejoradas:** Sistema de IA ahora requiere `origin_id` explícito, llama `get_robot_status()` si no lo conoce
-- **Prioridad de Objetivo:** Sistema compara distancia al nodo vs distancia a obstáculos para permitir llegar a nodos cerca de paredes
 - Windows Compatible: Probado en Windows 10/11 con Python 3.x
 - Buffering: El bridge ejecuta `mcp_server.py` con flag `-u` automáticamente para evitar problemas de buffering en Windows
 
@@ -1160,6 +1110,15 @@ Cobertura de pruebas:
 - Mejora: Usar Context de FastMCP para enviar actualizaciones proactivas
 - Beneficio: Latencia más baja (<50ms), menos overhead de red
 - Trade-off: Más complejidad, MCP SSE tiene limitaciones para eventos push
+
+**2. Umbrales Adaptativos de Obstáculos (PENDIENTE DE IMPLEMENTACIÓN):**
+- **Problema Actual:** En espacios reducidos, los nodos pueden estar cerca de paredes (ej: nodo a 25cm, pared a 29cm). El umbral actual (`D_INFLUENCE = 100cm`, `IR_THRESHOLD_DETECT`) hace que el robot evite la pared y no pueda llegar al nodo.
+- **Solución Propuesta:** Sistema de umbrales adaptativos según:
+  - **Proximidad al waypoint:** Si `distance_to_goal < 30cm` → Reducir `D_INFLUENCE` progresivamente (ej: 100cm → 50cm → 30cm)
+  - **Velocidad del robot:** Si `velocity < 10 cm/s` → Reducir `IR_THRESHOLD_DETECT` (permitir detección más cercana)
+  - **Combinación:** Cuando ambas condiciones se cumplen, el robot puede acercarse más a obstáculos para alcanzar el nodo
+- **Beneficio:** Permite llegar a nodos cerca de paredes sin evitar obstáculos innecesariamente
+- **Implementación Sugerida:** Modificar `repulsive_force()` en `src/potential_fields.py` para calcular umbrales dinámicos basados en `distance_to_goal` y `current_velocity`
 
 **2. Visualización Gráfica del Mapa:**
 - Canvas HTML5 para dibujar trayectoria en tiempo real
