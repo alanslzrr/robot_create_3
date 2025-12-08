@@ -290,7 +290,7 @@ class BridgeSession:
         
         self.openai_ws = await websockets.connect(
             OPENAI_REALTIME_URL,
-            extra_headers=headers
+            additional_headers=headers
         )
         
         await self.log("Conectado a OpenAI Realtime", "success")
