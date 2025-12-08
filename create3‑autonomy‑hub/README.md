@@ -1,4 +1,4 @@
-# Práctica 5 - Navegación con Campos de Potencial y Waypoints
+# Proyecto Final - Navegación con Campos de Potencial y Waypoints
 
 **Autores:** Alan Ariel Salazar, Yago Ramos Sánchez  
 **Fecha de Finalización:** 11 de noviembre de 2025  
@@ -38,7 +38,7 @@ Este proyecto implementa un sistema completo de navegación autónoma para el ro
 
 ### Mejoras respecto a PL4
 
-En esta práctica (PL5), extendimos el sistema de PL4 con las siguientes mejoras:
+En este proyecto final, extendimos el sistema de PL4 con las siguientes mejoras:
 
 - **Navegación Secuencial por Waypoints** - El robot ahora visita múltiples puntos intermedios en orden: `q_i → wp1 → wp2 → ... → q_f`, permitiendo navegación topológica mediante una carta de navegación con zonas de interés
 - **Configuración Visual de Rutas** - Herramienta gráfica interactiva (`visual_point_config.py`) para definir rutas completas con múltiples puntos de forma intuitiva
@@ -58,7 +58,7 @@ Los puntos de navegación que utilizamos provienen de un archivo Excel proporcio
 El proyecto está organizado en varias carpetas y archivos principales que cumplen funciones específicas:
 
 ```
-PL5/
+Proyecto Final/
 ├── PRM02_P01.py          # Script principal Parte 01 (potencial atractivo)
 ├── PRM02_P02_EQUIPO1.py          # Script principal Parte 02 (potencial combinado con waypoints)
 ├── PRM02_P02_EQUIPO1_grafos.py   # Variante Parte 02 con planificación sobre grafo topológico
