@@ -1,6 +1,6 @@
 # Proyecto Final - Navegación con Campos de Potencial y Waypoints
 
-**Autores:** Alan Ariel Salazar, Yago Ramos Sánchez  
+**Autor:** Alan Ariel Salazar
 **Fecha de Finalización:** 11 de noviembre de 2025  
 **Institución:** Universidad Intercontinental de la Empresa (UIE)  
 **Asignatura:** Robots Autónomos  
@@ -1334,3 +1334,4 @@ El sistema implementado permite al robot navegar de forma autónoma desde una po
 El sistema de seguridad basado en clearance efectivo y frenado predictivo garantiza tiempo suficiente de reacción ante obstáculos, mientras que la detección de gaps navegables permite al robot pasar por pasillos estrechos sin detenerse innecesariamente.
 
 Los archivos CSV generados permiten análisis comparativo detallado para evaluar el rendimiento de cada función de potencial y ajustar parámetros según sea necesario para mejorar el comportamiento en diferentes condiciones de navegación.
+
